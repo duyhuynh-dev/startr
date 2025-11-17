@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import diligence, feed, matches, messaging, profiles, prompts
+from app.api.v1.endpoints import admin, diligence, feed, matches, messaging, profiles, prompts
 
 api_router = APIRouter()
 
@@ -38,5 +38,11 @@ api_router.include_router(
     diligence.router,
     prefix="/v1/diligence",
     tags=["diligence"],
+)
+
+api_router.include_router(
+    admin.router,
+    prefix="/v1/admin",
+    tags=["admin"],
 )
 
