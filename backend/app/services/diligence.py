@@ -4,10 +4,9 @@ import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from redis.exceptions import RedisError
 from sqlmodel import Session
 
-from app.core.redis import redis_client
+from app.core.cache import CACHE_TTL_LONG, cache_service
 from app.models.profile import Profile
 from app.schemas.diligence import DiligenceSummary, Metric, RiskFlag
 from app.services.etl.data_sources import ClearbitSource, CrunchbaseSource, PlaidSource
@@ -22,8 +21,7 @@ class DiligenceService:
     Automated due diligence service with ETL pipeline, rule-based checks, and LLM summaries.
     """
 
-    DILIGENCE_CACHE_PREFIX = "diligence:"
-    CACHE_TTL = 3600  # 1 hour
+    DILIGENCE_CACHE_TTL = CACHE_TTL_LONG  # 1 hour
 
     def __init__(self):
         self.crunchbase = CrunchbaseSource()
@@ -38,15 +36,11 @@ class DiligenceService:
         Uses Redis cache unless force_refresh=True.
         """
         # Check cache first
-        cache_key = f"{self.DILIGENCE_CACHE_PREFIX}{profile_id}"
+        cache_key = cache_service.get_diligence_key(profile_id)
         if not force_refresh:
-            try:
-                cached = redis_client.get(cache_key)
-                if cached:
-                    data = json.loads(cached)
-                    return DiligenceSummary(**data)
-            except RedisError:
-                pass
+            cached = cache_service.get(cache_key)
+            if cached:
+                return DiligenceSummary(**cached)
 
         # Fetch profile
         profile = session.get(Profile, profile_id)
@@ -79,12 +73,7 @@ class DiligenceService:
         )
 
         # Cache the result
-        try:
-            redis_client.setex(
-                cache_key, self.CACHE_TTL, json.dumps(summary.model_dump(mode="json"))
-            )
-        except RedisError:
-            pass
+        cache_service.set(cache_key, summary.model_dump(mode="json"), self.DILIGENCE_CACHE_TTL)
 
         return summary
 

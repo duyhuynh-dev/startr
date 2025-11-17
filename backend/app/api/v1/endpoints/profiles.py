@@ -11,6 +11,7 @@ from app.core.exceptions import NotFoundError
 from app.db.session import get_session
 from app.models.profile import Profile
 from app.schemas.profile import BaseProfile, ProfileCreate, ProfileUpdate
+from app.services.profile_cache import profile_cache_service
 
 router = APIRouter()
 
@@ -25,16 +26,22 @@ def create_profile(payload: ProfileCreate, session: Session = Depends(get_sessio
     session.add(profile)
     session.commit()
     session.refresh(profile)
-    return BaseProfile(**profile.model_dump())
+    
+    # Cache the new profile
+    base_profile = BaseProfile(**profile.model_dump())
+    from app.core.cache import cache_service
+    cache_service.set(cache_service.get_profile_key(profile.id), base_profile.model_dump(), cache_service.CACHE_TTL_LONG)
+    
+    return base_profile
 
 
 @router.get("/{profile_id}", response_model=BaseProfile)
 def get_profile(profile_id: str, session: Session = Depends(get_session)) -> BaseProfile:
-    """Get a profile by ID."""
-    profile = session.get(Profile, profile_id)
+    """Get a profile by ID (cached)."""
+    profile = profile_cache_service.get_profile(profile_id, session)
     if not profile:
         raise NotFoundError(resource="Profile", identifier=profile_id)
-    return BaseProfile(**profile.model_dump())
+    return profile
 
 
 @router.put("/{profile_id}", response_model=BaseProfile)
@@ -56,7 +63,16 @@ def update_profile(
     session.add(profile)
     session.commit()
     session.refresh(profile)
-    return BaseProfile(**profile.model_dump())
+    
+    # Invalidate cache for this profile and related caches
+    profile_cache_service.invalidate_profile(profile_id)
+    
+    # Cache the updated profile
+    base_profile = BaseProfile(**profile.model_dump())
+    from app.core.cache import cache_service
+    cache_service.set(cache_service.get_profile_key(profile.id), base_profile.model_dump(), cache_service.CACHE_TTL_LONG)
+    
+    return base_profile
 
 
 @router.get("", response_model=List[BaseProfile])

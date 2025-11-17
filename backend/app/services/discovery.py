@@ -8,6 +8,7 @@ from redis.exceptions import RedisError
 from sqlalchemy import select, func, or_, and_
 from sqlmodel import Session
 
+from app.core.cache import CACHE_TTL_SHORT, CACHE_TTL_LONG, cache_service
 from app.core.redis import redis_client
 from app.models.match import Like
 from app.models.profile import Profile
@@ -17,12 +18,9 @@ from app.schemas.feed import DiscoveryFeedResponse, LikesQueueItem, ProfileCard,
 class DiscoveryFeedService:
     """Redis-backed discovery feed with ranking, likes queue, and standouts."""
 
-    # Redis key prefixes
-    FEED_CACHE_PREFIX = "feed:"
-    FEED_CACHE_TTL = 300  # 5 minutes
-    LIKES_QUEUE_PREFIX = "likes_queue:"
-    COMPATIBILITY_SCORE_PREFIX = "compat:"
-    COMPATIBILITY_CACHE_TTL = 3600  # 1 hour
+    # Cache TTLs
+    FEED_CACHE_TTL = CACHE_TTL_SHORT  # 5 minutes - feeds change frequently
+    COMPATIBILITY_CACHE_TTL = CACHE_TTL_LONG  # 1 hour - compatibility scores change less often
 
     def get_discovery_feed(
         self,
@@ -44,44 +42,41 @@ class DiscoveryFeedService:
         target_role = role_filter or ("founder" if current_profile.role == "investor" else "investor")
 
         # Try Redis cache first
-        cache_key = f"{self.FEED_CACHE_PREFIX}{profile_id}:{target_role}"
-        try:
-            cached = redis_client.get(cache_key)
-            if cached:
-                feed_data = json.loads(cached)
-                profile_ids = feed_data.get("profile_ids", [])
-                
-                # Apply pagination
-                start_idx = int(cursor) if cursor else 0
-                end_idx = start_idx + limit
-                paginated_ids = profile_ids[start_idx:end_idx]
-                
-                if not paginated_ids:
-                    return DiscoveryFeedResponse(profiles=[], cursor=None, has_more=False)
-                
-                # Fetch profiles and build response
-                profiles = self._fetch_profiles_with_metadata(
-                    session, profile_id, paginated_ids, target_role
-                )
-                
-                next_cursor = str(end_idx) if end_idx < len(profile_ids) else None
-                return DiscoveryFeedResponse(
-                    profiles=profiles,
-                    cursor=next_cursor,
-                    has_more=end_idx < len(profile_ids),
-                )
-        except RedisError:
-            pass
+        cache_key = cache_service.get_feed_key(profile_id, target_role)
+        cached = cache_service.get(cache_key)
+        if cached:
+            feed_data = cached if isinstance(cached, dict) else json.loads(str(cached))
+            profile_ids = feed_data.get("profile_ids", [])
+            
+            # Apply pagination
+            start_idx = int(cursor) if cursor else 0
+            end_idx = start_idx + limit
+            paginated_ids = profile_ids[start_idx:end_idx]
+            
+            if not paginated_ids:
+                return DiscoveryFeedResponse(profiles=[], cursor=None, has_more=False)
+            
+            # Fetch profiles and build response
+            profiles = self._fetch_profiles_with_metadata(
+                session, profile_id, paginated_ids, target_role
+            )
+            
+            next_cursor = str(end_idx) if end_idx < len(profile_ids) else None
+            return DiscoveryFeedResponse(
+                profiles=profiles,
+                cursor=next_cursor,
+                has_more=end_idx < len(profile_ids),
+            )
 
         # Cache miss - compute ranking
         ranked_profile_ids = self._rank_profiles(session, current_profile, target_role)
         
         # Cache the ranking
-        try:
-            cache_data = json.dumps({"profile_ids": ranked_profile_ids, "generated_at": datetime.utcnow().isoformat()})
-            redis_client.setex(cache_key, self.FEED_CACHE_TTL, cache_data)
-        except RedisError:
-            pass
+        cache_data = {
+            "profile_ids": ranked_profile_ids,
+            "generated_at": datetime.utcnow().isoformat()
+        }
+        cache_service.set(cache_key, cache_data, self.FEED_CACHE_TTL)
 
         # Apply pagination
         start_idx = int(cursor) if cursor else 0
@@ -105,7 +100,7 @@ class DiscoveryFeedService:
         Get users who have liked you (likes queue).
         Checks Redis first, falls back to database.
         """
-        queue_key = f"{self.LIKES_QUEUE_PREFIX}{profile_id}"
+        queue_key = f"{cache_service.LIKES_QUEUE_PREFIX}{profile_id}"
         
         try:
             # Try Redis queue
@@ -222,13 +217,10 @@ class DiscoveryFeedService:
     ) -> float:
         """Compute compatibility score between two profiles (heuristic-based for now)."""
         # Try Redis cache first
-        cache_key = f"{self.COMPATIBILITY_SCORE_PREFIX}{profile_a.id}:{profile_b.id}"
-        try:
-            cached = redis_client.get(cache_key)
-            if cached:
-                return float(cached)
-        except RedisError:
-            pass
+        cache_key = cache_service.get_compatibility_key(profile_a.id, profile_b.id)
+        cached = cache_service.get(cache_key)
+        if cached is not None:
+            return float(cached)
 
         score = 0.0
         max_score = 100.0
@@ -268,10 +260,7 @@ class DiscoveryFeedService:
             score += 10
 
         # Cache the score
-        try:
-            redis_client.setex(cache_key, self.COMPATIBILITY_CACHE_TTL, str(score))
-        except RedisError:
-            pass
+        cache_service.set(cache_key, str(score), self.COMPATIBILITY_CACHE_TTL, serialize=False)
 
         return min(score, max_score)
 

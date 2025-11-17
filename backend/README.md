@@ -140,6 +140,18 @@ alembic history
 
 **Important:** Always review auto-generated migrations before applying them. Alembic may not detect all changes (especially JSON fields or complex relationships).
 
+## Caching Strategy
+
+The backend uses Redis for multi-level caching with TTL management:
+
+- **Profile Lookups**: 1 hour TTL - profiles cached on read, invalidated on update
+- **Discovery Feeds**: 5 minutes TTL - frequently changing ranking data
+- **Compatibility Scores**: 1 hour TTL - cached between profile pairs
+- **Diligence Summaries**: 1 hour TTL - cached due-diligence results
+- **Prompt Templates**: 24 hours TTL - rarely changing template data
+
+All caches automatically invalidate related entries when data changes (e.g., profile updates invalidate feed and compatibility caches).
+
 ## Next Steps
 
 1. ✅ Core models and endpoints implemented
@@ -148,5 +160,6 @@ alembic history
 4. ✅ Admin endpoints for verification and curation
 5. ✅ Error handling and validation improvements
 6. ✅ Alembic migrations
-7. ⏳ Seed data scripts
-8. ⏳ ML integration (PyTorch recommendation engine)
+7. ✅ Redis caching layer with TTL management
+8. ⏳ Seed data scripts
+9. ⏳ ML integration (PyTorch recommendation engine)

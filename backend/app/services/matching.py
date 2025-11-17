@@ -6,6 +6,7 @@ from redis.exceptions import RedisError
 from sqlalchemy import select
 from sqlmodel import Session
 
+from app.core.cache import cache_service
 from app.core.redis import redis_client
 from app.models.match import Like, Match
 from app.models.profile import Profile
@@ -31,9 +32,14 @@ class MatchingService:
         session.refresh(like)
 
         try:
-            redis_client.lpush(f"likes:{payload.recipient_id}", like.id)
+            redis_client.lpush(f"{cache_service.LIKES_QUEUE_PREFIX}{payload.recipient_id}", like.id)
         except RedisError:
             pass
+
+        # Invalidate feed caches since ranking may change
+        cache_service.invalidate_feeds_for_profile(payload.recipient_id)
+        cache_service.invalidate_compatibility_scores(payload.sender_id)
+        cache_service.invalidate_compatibility_scores(payload.recipient_id)
 
         reciprocal = session.exec(
             select(Like).where(
@@ -44,6 +50,9 @@ class MatchingService:
 
         if reciprocal:
             match = self._create_match(session, payload.sender_id, payload.recipient_id, payload.note)
+            # Invalidate feed caches for both users after match
+            cache_service.invalidate_feeds_for_profile(payload.sender_id)
+            cache_service.invalidate_feeds_for_profile(payload.recipient_id)
             return MatchRecord(**match.model_dump())
         return None
 
@@ -56,13 +65,15 @@ class MatchingService:
         return [MatchRecord(**match.model_dump()) for match in results]
 
     def rank_profiles(self, session: Session, profile_id: str) -> list[str]:
-        key = f"likes:{profile_id}"
+        """Get ranked profile IDs from likes (for feed ranking)."""
+        key = f"{cache_service.LIKES_QUEUE_PREFIX}{profile_id}"
         try:
             like_ids = redis_client.lrange(key, 0, 50)
             if like_ids:
                 return like_ids
         except RedisError:
-            like_ids = []
+            pass
+        # Fallback to database
         results = session.exec(select(Like.recipient_id).where(Like.sender_id == profile_id)).all()
         return list(results)
 
