@@ -7,6 +7,7 @@ from fastapi import Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
+from slowapi.errors import RateLimitExceeded
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.core.exceptions import AppException
@@ -112,6 +113,25 @@ async def sqlalchemy_error_handler(request: Request, exc: SQLAlchemyError) -> JS
             details=[ErrorDetail(message=str(exc), code="database_error")],
             timestamp=datetime.utcnow().isoformat(),
         ).model_dump(),
+    )
+
+
+async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    """Handle rate limit exceeded errors."""
+    return JSONResponse(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        content=ErrorResponse(
+            error="Rate limit exceeded",
+            status_code=429,
+            details=[
+                ErrorDetail(
+                    message=f"Too many requests. Limit: {exc.detail}",
+                    code="rate_limit_exceeded",
+                )
+            ],
+            timestamp=datetime.utcnow().isoformat(),
+        ).model_dump(),
+        headers={"Retry-After": str(exc.retry_after) if hasattr(exc, "retry_after") else "60"},
     )
 
 

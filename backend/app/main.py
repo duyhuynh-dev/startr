@@ -1,6 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi.errors import RateLimitExceeded
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.api.router import api_router
@@ -10,9 +11,15 @@ from app.core.handlers import (
     app_exception_handler,
     generic_exception_handler,
     integrity_error_handler,
+    rate_limit_exceeded_handler,
     sqlalchemy_error_handler,
     validation_exception_handler,
     value_error_handler,
+)
+from app.core.rate_limit import limiter
+from app.core.security_middleware import (
+    InputSanitizationMiddleware,
+    SecurityHeadersMiddleware,
 )
 from app.db.session import create_db_and_tables
 
@@ -85,7 +92,14 @@ def create_application() -> FastAPI:
     app.add_exception_handler(IntegrityError, integrity_error_handler)
     app.add_exception_handler(SQLAlchemyError, sqlalchemy_error_handler)
     app.add_exception_handler(Exception, generic_exception_handler)
+    
+    # Rate limiting exception handler
+    app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
+    # Security middleware (order matters - security headers should be first)
+    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(InputSanitizationMiddleware)
+    
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_hosts,
@@ -95,13 +109,17 @@ def create_application() -> FastAPI:
     )
 
     app.include_router(api_router, prefix=settings.api_prefix)
+    
+    # Mount limiter to app state (required by slowapi)
+    app.state.limiter = limiter
 
     @app.on_event("startup")
     def on_startup() -> None:
         create_db_and_tables()
 
     @app.get("/healthz", tags=["health"])
-    def healthcheck() -> dict[str, str]:
+    @limiter.limit("100/minute")  # Rate limit health checks
+    def healthcheck(request: Request) -> dict[str, str]:
         return {"status": "ok"}
 
     return app

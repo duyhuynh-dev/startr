@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlmodel import Session
 
+from app.core.rate_limit import limiter
 from app.db.session import get_session
 from app.schemas.match import LikePayload, MatchRecord
 from app.services.matching import matching_service
@@ -32,7 +33,12 @@ router = APIRouter()
         400: {"description": "Invalid like payload (e.g., cannot like yourself)"},
     },
 )
-def send_like(payload: LikePayload, session: Session = Depends(get_session)) -> dict:
+@limiter.limit("50/hour")  # Rate limit likes to prevent spam
+def send_like(
+    request: Request,
+    payload: LikePayload,
+    session: Session = Depends(get_session),
+) -> dict:
     """Send a like to another profile. Returns match if mutual."""
     match = matching_service.record_like(session, payload)
     return {"status": "matched" if match else "pending", "match": match}

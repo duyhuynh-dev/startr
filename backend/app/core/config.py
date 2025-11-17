@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = "INFO"
 
+    # Rate Limiting
+    rate_limit_enabled: bool = True
+    rate_limit_default: str = "100/minute"  # Default rate limit
+    rate_limit_auth: str = "1000/hour"  # Higher limit for authenticated endpoints
+
     # External API Keys (Optional - for ETL services)
     crunchbase_api_key: Optional[str] = None
     clearbit_api_key: Optional[str] = None

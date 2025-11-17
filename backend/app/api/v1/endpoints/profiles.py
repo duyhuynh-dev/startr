@@ -3,11 +3,12 @@ from __future__ import annotations
 from datetime import datetime
 from typing import List
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy import select
 from sqlmodel import Session
 
 from app.core.exceptions import NotFoundError
+from app.core.rate_limit import limiter
 from app.db.session import get_session
 from app.models.profile import Profile
 from app.schemas.profile import BaseProfile, ProfileCreate, ProfileUpdate
@@ -36,7 +37,12 @@ router = APIRouter()
     """,
     response_description="The created profile with generated ID and timestamps",
 )
-def create_profile(payload: ProfileCreate, session: Session = Depends(get_session)) -> BaseProfile:
+@limiter.limit("10/hour")  # Stricter rate limit for profile creation
+def create_profile(
+    request: Request,
+    payload: ProfileCreate,
+    session: Session = Depends(get_session),
+) -> BaseProfile:
     """Create a new profile."""
     data = payload.model_dump()
     if data.get("verification"):
