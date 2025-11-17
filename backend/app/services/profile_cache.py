@@ -63,7 +63,7 @@ class ProfileCacheService:
             avatar_url=profile.avatar_url,
             location=profile.location,
             prompts=prompts,
-            metadata=profile.metadata,
+            extra_metadata=profile.extra_metadata,
             verification=verification,
             firm=profile.firm,
             check_size_min=profile.check_size_min,

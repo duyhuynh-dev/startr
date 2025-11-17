@@ -10,7 +10,26 @@ from app.services.diligence import diligence_service
 router = APIRouter()
 
 
-@router.get("/{profile_id}", response_model=DiligenceSummary)
+@router.get(
+    "/{profile_id}",
+    response_model=DiligenceSummary,
+    summary="Get due diligence summary",
+    description="""
+    Get automated due diligence summary for a profile (founder/startup).
+    
+    Includes:
+    - Aggregated metrics (revenue, team size, runway, etc.)
+    - Risk flags (based on rule-based checks)
+    - ETL data from external sources (Crunchbase, Clearbit, Plaid stubs)
+    - LLM-generated summary (when available)
+    
+    Results are cached for 24 hours by default. Use `force_refresh=true` to bypass cache.
+    """,
+    responses={
+        200: {"description": "Diligence summary returned successfully"},
+        404: {"description": "Profile not found"},
+    },
+)
 def get_summary(
     profile_id: str,
     force_refresh: bool = Query(

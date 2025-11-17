@@ -93,7 +93,7 @@ class DiligenceService:
             "crunchbase": self.crunchbase.fetch_company_data(company_name, domain),
             "clearbit": self.clearbit.fetch_company_data(company_name, domain),
             "plaid": self.plaid.fetch_financial_data(company_name, domain)
-            if profile.metadata and profile.metadata.get("plaid_connected")
+            if profile.extra_metadata and profile.extra_metadata.get("plaid_connected")
             else {"status": "not_connected"},
         }
 

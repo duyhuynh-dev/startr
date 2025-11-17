@@ -28,7 +28,7 @@ class BaseProfile(BaseModel):
     avatar_url: str | None = None
     location: str | None = None
     prompts: List[PromptResponse] = Field(default_factory=list)
-    metadata: dict | None = None
+    extra_metadata: dict | None = None
     verification: VerificationStatus = Field(default_factory=VerificationStatus)
     firm: str | None = None
     check_size_min: Optional[int] = None
@@ -54,7 +54,7 @@ class ProfileCreate(BaseModel):
     avatar_url: str | None = None
     location: str | None = None
     prompts: List[PromptResponse] = Field(default_factory=list)
-    metadata: dict | None = None
+    extra_metadata: dict | None = None
     firm: str | None = None
     check_size_min: Optional[int] = None
     check_size_max: Optional[int] = None
@@ -75,7 +75,7 @@ class ProfileUpdate(BaseModel):
     avatar_url: str | None = None
     location: str | None = None
     prompts: List[PromptResponse] | None = None
-    metadata: dict | None = None
+    extra_metadata: dict | None = None
     firm: str | None = None
     check_size_min: Optional[int] = None
     check_size_max: Optional[int] = None

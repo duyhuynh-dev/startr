@@ -17,7 +17,16 @@ from app.services.prompt_templates import prompt_template_service
 router = APIRouter()
 
 
-@router.post("", response_model=PromptTemplateResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=PromptTemplateResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create prompt template",
+    description="Create a new prompt template for use in profile building (e.g., 'What gets you excited about a startup?').",
+    responses={
+        201: {"description": "Template created successfully"},
+    },
+)
 def create_template(
     payload: PromptTemplateCreate, session: Session = Depends(get_session)
 ) -> PromptTemplateResponse:
@@ -26,7 +35,16 @@ def create_template(
     return PromptTemplateResponse(**template.model_dump())
 
 
-@router.get("/{template_id}", response_model=PromptTemplateResponse)
+@router.get(
+    "/{template_id}",
+    response_model=PromptTemplateResponse,
+    summary="Get prompt template",
+    description="Get a specific prompt template by ID. Results are cached for 24 hours.",
+    responses={
+        200: {"description": "Template returned successfully"},
+        404: {"description": "Template not found"},
+    },
+)
 def get_template(
     template_id: str, session: Session = Depends(get_session)
 ) -> PromptTemplateResponse:
@@ -37,7 +55,15 @@ def get_template(
     return PromptTemplateResponse(**template.model_dump())
 
 
-@router.get("", response_model=List[PromptTemplateResponse])
+@router.get(
+    "",
+    response_model=List[PromptTemplateResponse],
+    summary="List prompt templates",
+    description="List all prompt templates, optionally filtered by role and active status. Ordered by display_order.",
+    responses={
+        200: {"description": "Templates returned successfully"},
+    },
+)
 def list_templates(
     role: Optional[str] = Query(None, description="Filter by role: investor or founder"),
     is_active: Optional[bool] = Query(
@@ -50,7 +76,16 @@ def list_templates(
     return [PromptTemplateResponse(**template.model_dump()) for template in templates]
 
 
-@router.put("/{template_id}", response_model=PromptTemplateResponse)
+@router.put(
+    "/{template_id}",
+    response_model=PromptTemplateResponse,
+    summary="Update prompt template",
+    description="Partially update a prompt template. Only provided fields will be updated.",
+    responses={
+        200: {"description": "Template updated successfully"},
+        404: {"description": "Template not found"},
+    },
+)
 def update_template(
     template_id: str,
     payload: PromptTemplateUpdate,
@@ -63,7 +98,16 @@ def update_template(
     return PromptTemplateResponse(**template.model_dump())
 
 
-@router.delete("/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{template_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete prompt template",
+    description="Delete a prompt template. This will not affect existing profiles that use this template.",
+    responses={
+        204: {"description": "Template deleted successfully"},
+        404: {"description": "Template not found"},
+    },
+)
 def delete_template(
     template_id: str, session: Session = Depends(get_session)
 ) -> None:

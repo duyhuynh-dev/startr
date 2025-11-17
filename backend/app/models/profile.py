@@ -19,7 +19,7 @@ class Profile(SQLModel, table=True):
     avatar_url: Optional[str] = None
     location: Optional[str] = None
     prompts: List[dict] = Field(default_factory=list, sa_column=Column(JSON, nullable=False, default=list))
-    metadata: dict | None = Field(default=None, sa_column=Column(JSON))
+    extra_metadata: dict | None = Field(default=None, sa_column=Column(JSON))
 
     firm: Optional[str] = None
     check_size_min: Optional[int] = None
