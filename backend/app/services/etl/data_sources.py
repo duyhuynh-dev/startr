@@ -22,7 +22,8 @@ class CrunchbaseSource(DataSource):
     """Crunchbase API integration (stub for now)."""
 
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or "demo_key"  # Replace with env var
+        from app.core.config import settings
+        self.api_key = api_key or settings.crunchbase_api_key or "demo_key"
 
     def fetch_company_data(self, company_name: str, domain: Optional[str] = None) -> Dict[str, Any]:
         """Fetch company data from Crunchbase."""
@@ -59,7 +60,8 @@ class ClearbitSource(DataSource):
     """Clearbit API integration (stub for now)."""
 
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or "demo_key"  # Replace with env var
+        from app.core.config import settings
+        self.api_key = api_key or settings.clearbit_api_key or "demo_key"
 
     def fetch_company_data(self, company_name: str, domain: Optional[str] = None) -> Dict[str, Any]:
         """Fetch company data from Clearbit."""
@@ -84,8 +86,10 @@ class PlaidSource(DataSource):
     """Plaid integration for revenue verification (stub for now)."""
 
     def __init__(self, client_id: Optional[str] = None, secret: Optional[str] = None):
-        self.client_id = client_id or "demo_client_id"
-        self.secret = secret or "demo_secret"
+        from app.core.config import settings
+        self.client_id = client_id or settings.plaid_client_id or "demo_client_id"
+        self.secret = secret or settings.plaid_secret or "demo_secret"
+        self.environment = settings.plaid_environment
 
     def fetch_company_data(self, company_name: str, domain: Optional[str] = None) -> Dict[str, Any]:
         """Plaid doesn't provide company data."""
