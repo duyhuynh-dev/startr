@@ -53,12 +53,25 @@ This starts:
 
 ### 4. Initialize Database
 
+**Option 1: Using Alembic (Recommended for production):**
+
+```bash
+cd backend
+# Create initial migration
+alembic revision --autogenerate -m "Initial migration"
+
+# Apply migrations
+alembic upgrade head
+```
+
+**Option 2: Auto-create tables (Development only):**
+
 ```bash
 cd backend
 python -c "from app.db.session import create_db_and_tables; create_db_and_tables()"
 ```
 
-Or if running the app, it will auto-create tables on startup (see `app/main.py`).
+Or if running the app, it will auto-create tables on startup (see `app/main.py`). For production, always use Alembic migrations.
 
 ### 5. Run the API Server
 
@@ -104,13 +117,36 @@ ruff format .
 ruff check .
 ```
 
+## Database Migrations
+
+This project uses Alembic for database schema versioning.
+
+```bash
+# Create a new migration
+alembic revision --autogenerate -m "Description of changes"
+
+# Apply migrations
+alembic upgrade head
+
+# Rollback to previous version
+alembic downgrade -1
+
+# Check current migration status
+alembic current
+
+# View migration history
+alembic history
+```
+
+**Important:** Always review auto-generated migrations before applying them. Alembic may not detect all changes (especially JSON fields or complex relationships).
+
 ## Next Steps
 
 1. ✅ Core models and endpoints implemented
 2. ✅ Redis-backed discovery feed
 3. ✅ Automated diligence service with ETL stubs
 4. ✅ Admin endpoints for verification and curation
-5. ⏳ Error handling and validation improvements
-6. ⏳ Alembic migrations
+5. ✅ Error handling and validation improvements
+6. ✅ Alembic migrations
 7. ⏳ Seed data scripts
 8. ⏳ ML integration (PyTorch recommendation engine)
