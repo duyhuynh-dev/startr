@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import diligence, matches, profiles, prompts
+from app.api.v1.endpoints import diligence, matches, messaging, profiles, prompts
 
 api_router = APIRouter()
 
@@ -20,6 +20,12 @@ api_router.include_router(
     matches.router,
     prefix="/v1/matches",
     tags=["matches"],
+)
+
+api_router.include_router(
+    messaging.router,
+    prefix="/v1/messages",
+    tags=["messaging"],
 )
 
 api_router.include_router(
