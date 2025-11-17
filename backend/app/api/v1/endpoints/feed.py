@@ -24,7 +24,8 @@ def get_discovery_feed(
     try:
         return discovery_feed_service.get_discovery_feed(session, profile_id, role, limit, cursor)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        from app.core.exceptions import ValidationError
+        raise ValidationError(message=str(e))
 
 
 @router.get("/likes-queue", response_model=List[LikesQueueItem])
@@ -46,5 +47,6 @@ def get_standouts(
     try:
         return discovery_feed_service.get_standouts(session, profile_id, limit)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        from app.core.exceptions import ValidationError
+        raise ValidationError(message=str(e))
 

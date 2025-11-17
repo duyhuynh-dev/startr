@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlmodel import Session
 
+from app.core.exceptions import ValidationError
 from app.db.session import get_session
 from app.schemas.message import ConversationThread, MessageCreate, MessageResponse
 from app.services.messaging import messaging_service
@@ -18,7 +19,7 @@ def create_message(payload: MessageCreate, session: Session = Depends(get_sessio
     try:
         return messaging_service.create_message(session, payload)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise ValidationError(message=str(e))
 
 
 @router.get("/{match_id}", response_model=List[MessageResponse])
@@ -32,7 +33,7 @@ def list_messages(
     try:
         return messaging_service.list_messages(session, match_id, profile_id, limit)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise ValidationError(message=str(e))
 
 
 @router.get("", response_model=List[ConversationThread])

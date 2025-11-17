@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlmodel import Session
 
+from app.core.exceptions import NotFoundError
 from app.db.session import get_session
 from app.schemas.prompt_template import (
     PromptTemplateCreate,
@@ -32,9 +33,7 @@ def get_template(
     """Get a specific prompt template by ID."""
     template = prompt_template_service.get_template(session, template_id)
     if not template:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Prompt template not found"
-        )
+        raise NotFoundError(resource="Prompt template", identifier=template_id)
     return PromptTemplateResponse(**template.model_dump())
 
 
@@ -60,9 +59,7 @@ def update_template(
     """Update a prompt template."""
     template = prompt_template_service.update_template(session, template_id, payload)
     if not template:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Prompt template not found"
-        )
+        raise NotFoundError(resource="Prompt template", identifier=template_id)
     return PromptTemplateResponse(**template.model_dump())
 
 
@@ -73,7 +70,5 @@ def delete_template(
     """Delete a prompt template."""
     success = prompt_template_service.delete_template(session, template_id)
     if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Prompt template not found"
-        )
+        raise NotFoundError(resource="Prompt template", identifier=template_id)
 

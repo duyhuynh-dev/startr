@@ -22,7 +22,6 @@ def get_summary(
     try:
         return diligence_service.generate_summary(session, profile_id, force_refresh)
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(e)
-        )
+        from app.core.exceptions import NotFoundError
+        raise NotFoundError(resource="Profile", identifier=profile_id)
 

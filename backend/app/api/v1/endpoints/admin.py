@@ -40,9 +40,8 @@ def review_verification(
     try:
         return admin_service.review_verification(session, request)
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
-        )
+        from app.core.exceptions import ValidationError
+        raise ValidationError(message=str(e))
 
 
 @router.get("/startup-of-month/current", response_model=Optional[StartupOfMonthResponse])
@@ -64,9 +63,8 @@ def feature_startup_of_month(
     try:
         return admin_service.feature_startup_of_month(session, request)
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
-        )
+        from app.core.exceptions import ValidationError
+        raise ValidationError(message=str(e))
 
 
 @router.get("/startup-of-month", response_model=List[StartupOfMonthResponse])

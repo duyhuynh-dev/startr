@@ -1,21 +1,23 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy import select
 from sqlmodel import Session
 
+from app.core.exceptions import NotFoundError
 from app.db.session import get_session
 from app.models.profile import Profile
 from app.schemas.profile import BaseProfile, ProfileCreate, ProfileUpdate
-from datetime import datetime
 
 router = APIRouter()
 
 
 @router.post("", response_model=BaseProfile, status_code=status.HTTP_201_CREATED)
 def create_profile(payload: ProfileCreate, session: Session = Depends(get_session)) -> BaseProfile:
+    """Create a new profile."""
     data = payload.model_dump()
     if data.get("verification"):
         data["verification"] = data["verification"].model_dump()
@@ -28,9 +30,10 @@ def create_profile(payload: ProfileCreate, session: Session = Depends(get_sessio
 
 @router.get("/{profile_id}", response_model=BaseProfile)
 def get_profile(profile_id: str, session: Session = Depends(get_session)) -> BaseProfile:
+    """Get a profile by ID."""
     profile = session.get(Profile, profile_id)
     if not profile:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+        raise NotFoundError(resource="Profile", identifier=profile_id)
     return BaseProfile(**profile.model_dump())
 
 
@@ -40,9 +43,10 @@ def update_profile(
     payload: ProfileUpdate,
     session: Session = Depends(get_session),
 ) -> BaseProfile:
+    """Update a profile."""
     profile = session.get(Profile, profile_id)
     if not profile:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+        raise NotFoundError(resource="Profile", identifier=profile_id)
     update_data = payload.model_dump(exclude_unset=True)
     if update_data.get("verification"):
         update_data["verification"] = update_data["verification"].model_dump()
