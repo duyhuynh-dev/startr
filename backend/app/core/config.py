@@ -35,6 +35,13 @@ class Settings(BaseSettings):
     plaid_secret: Optional[str] = None
     plaid_environment: str = "sandbox"
 
+    # ML Configuration
+    embedding_model: str = "all-MiniLM-L6-v2"  # Sentence transformer model
+    ml_enabled: bool = True  # Enable/disable ML features
+    ml_similarity_weight: float = 0.6  # Weight for embedding similarity in ranking
+    ml_diligence_weight: float = 0.3  # Weight for diligence scores in ranking
+    ml_engagement_weight: float = 0.1  # Weight for user engagement signals
+
 
 @lru_cache
 def get_settings() -> Settings:

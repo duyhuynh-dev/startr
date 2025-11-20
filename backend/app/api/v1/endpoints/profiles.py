@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlmodel import Session
 
 from app.core.exceptions import NotFoundError
+from app.core.config import settings
 from app.core.rate_limit import limiter
 from app.db.session import get_session
 from app.models.profile import Profile
@@ -37,25 +38,33 @@ router = APIRouter()
     """,
     response_description="The created profile with generated ID and timestamps",
 )
-@limiter.limit("10/hour")  # Stricter rate limit for profile creation
+# Note: Rate limiting temporarily removed due to slowapi/FastAPI body parsing conflict
+# TODO: Re-implement with middleware-based rate limiting or fix slowapi integration
 def create_profile(
-    request: Request,
-    payload: ProfileCreate,
+    payload: ProfileCreate,  # Body parameter
     session: Session = Depends(get_session),
 ) -> BaseProfile:
     """Create a new profile."""
     data = payload.model_dump()
-    if data.get("verification"):
+    # Ensure verification is a dict, not None
+    if not data.get("verification"):
+        data["verification"] = {
+            "soft_verified": False,
+            "manual_reviewed": False,
+            "accreditation_attested": False,
+            "badges": [],
+        }
+    elif hasattr(data["verification"], "model_dump"):
         data["verification"] = data["verification"].model_dump()
     profile = Profile(**data)
     session.add(profile)
     session.commit()
     session.refresh(profile)
     
-    # Cache the new profile
-    base_profile = BaseProfile(**profile.model_dump())
-    from app.core.cache import cache_service
-    cache_service.set(cache_service.get_profile_key(profile.id), base_profile.model_dump(), cache_service.CACHE_TTL_LONG)
+    # Convert SQLModel Profile to Pydantic BaseProfile using profile_cache_service helper
+    base_profile = profile_cache_service._profile_to_base(profile)
+    from app.core.cache import CACHE_TTL_LONG, cache_service
+    cache_service.set(cache_service.get_profile_key(profile.id), base_profile.model_dump(), CACHE_TTL_LONG)
     
     return base_profile
 
@@ -110,10 +119,10 @@ def update_profile(
     # Invalidate cache for this profile and related caches
     profile_cache_service.invalidate_profile(profile_id)
     
-    # Cache the updated profile
-    base_profile = BaseProfile(**profile.model_dump())
-    from app.core.cache import cache_service
-    cache_service.set(cache_service.get_profile_key(profile.id), base_profile.model_dump(), cache_service.CACHE_TTL_LONG)
+    # Cache the updated profile - use profile_cache_service helper for proper conversion
+    base_profile = profile_cache_service._profile_to_base(profile)
+    from app.core.cache import CACHE_TTL_LONG, cache_service
+    cache_service.set(cache_service.get_profile_key(profile.id), base_profile.model_dump(), CACHE_TTL_LONG)
     
     return base_profile
 
@@ -134,6 +143,8 @@ def list_profiles(
     query = select(Profile)
     if role:
         query = query.where(Profile.role == role)
-    results = session.exec(query).all()
-    return [BaseProfile(**profile.model_dump()) for profile in results]
+    # Use scalars() to get Profile instances, not Row objects
+    results = session.exec(query).scalars().all()
+    # Convert SQLModel Profile to Pydantic BaseProfile using profile_cache_service helper
+    return [profile_cache_service._profile_to_base(profile) for profile in results]
 

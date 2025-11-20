@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import admin, diligence, feed, matches, messaging, profiles, prompts
+from app.api.v1.endpoints import admin, diligence, feed, matches, messaging, profiles, prompts, ml
 
 api_router = APIRouter()
 
@@ -44,5 +44,11 @@ api_router.include_router(
     admin.router,
     prefix="/v1/admin",
     tags=["admin"],
+)
+
+api_router.include_router(
+    ml.router,
+    prefix="/v1/ml",
+    tags=["ML"],
 )
 

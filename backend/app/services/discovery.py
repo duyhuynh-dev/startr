@@ -9,10 +9,21 @@ from sqlalchemy import select, func, or_, and_
 from sqlmodel import Session
 
 from app.core.cache import CACHE_TTL_SHORT, CACHE_TTL_LONG, cache_service
+from app.core.config import settings
 from app.core.redis import redis_client
 from app.models.match import Like
 from app.models.profile import Profile
 from app.schemas.feed import DiscoveryFeedResponse, LikesQueueItem, ProfileCard, StandoutProfile
+
+# ML services (optional - will fall back to heuristics if not available)
+try:
+    from app.services.ml.ranking import get_reranking_service
+    from app.services.ml.recommendation import get_recommendation_engine
+    ML_AVAILABLE = True
+except ImportError:
+    ML_AVAILABLE = False
+    get_reranking_service = None
+    get_recommendation_engine = None
 
 
 class DiscoveryFeedService:
@@ -189,7 +200,7 @@ class DiscoveryFeedService:
     def _rank_profiles(
         self, session: Session, current_profile: Profile, target_role: str
     ) -> List[str]:
-        """Rank profiles by compatibility (placeholder for ML model)."""
+        """Rank profiles by compatibility using ML when available, falling back to heuristics."""
         # Get all profiles of target role, excluding current user and already matched/liked
         excluded_ids = self._get_excluded_profile_ids(session, current_profile.id)
         
@@ -203,7 +214,52 @@ class DiscoveryFeedService:
             )
         ).all()
 
-        # Score and sort (simple heuristic for now, will be replaced by ML)
+        if not candidates:
+            return []
+
+        # Try ML-based ranking if available and enabled
+        if ML_AVAILABLE and settings.ml_enabled:
+            try:
+                reranking_service = get_reranking_service()
+                
+                # Convert profiles to dicts for ML service
+                from app.services.profile_cache import profile_cache_service
+                current_profile_dict = profile_cache_service._profile_to_base(current_profile).model_dump()
+                candidate_dicts = [
+                    profile_cache_service._profile_to_base(c).model_dump()
+                    for c in candidates
+                ]
+                
+                # Get diligence scores if available
+                diligence_scores = {}
+                try:
+                    from app.services.diligence import diligence_service
+                    for candidate in candidates:
+                        diligence_summary = diligence_service.get_diligence_summary(
+                            session, candidate.id
+                        )
+                        if diligence_summary and diligence_summary.get("overall_score"):
+                            diligence_scores[candidate.id] = diligence_summary["overall_score"] / 100.0
+                except Exception:
+                    pass  # Fall back to defaults if diligence unavailable
+                
+                # Use ML reranking
+                ranked = reranking_service.rerank_profiles(
+                    current_profile_dict,
+                    candidate_dicts,
+                    diligence_scores=diligence_scores,
+                    limit=None,
+                )
+                
+                # Return profile IDs in ranked order
+                return [candidate.get("id") for candidate, _ in ranked if candidate.get("id")]
+                
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"ML ranking failed, falling back to heuristics: {e}")
+
+        # Fallback to heuristic-based scoring
         scored = []
         for candidate in candidates:
             score = self._compute_compatibility_score(session, current_profile, candidate)
@@ -215,13 +271,52 @@ class DiscoveryFeedService:
     def _compute_compatibility_score(
         self, session: Session, profile_a: Profile, profile_b: Profile
     ) -> float:
-        """Compute compatibility score between two profiles (heuristic-based for now)."""
+        """Compute compatibility score between two profiles.
+        
+        Uses ML-based similarity when available, falls back to heuristics.
+        Score is normalized to 0-100 range for consistency.
+        """
         # Try Redis cache first
         cache_key = cache_service.get_compatibility_key(profile_a.id, profile_b.id)
         cached = cache_service.get(cache_key)
         if cached is not None:
             return float(cached)
 
+        score = 0.0
+
+        # Try ML-based similarity if available
+        if ML_AVAILABLE and settings.ml_enabled:
+            try:
+                recommendation_engine = get_recommendation_engine()
+                from app.services.profile_cache import profile_cache_service
+                
+                profile_a_dict = profile_cache_service._profile_to_base(profile_a).model_dump()
+                profile_b_dict = profile_cache_service._profile_to_base(profile_b).model_dump()
+                
+                # ML similarity is 0-1, convert to 0-100 range
+                ml_similarity = recommendation_engine.compute_profile_similarity(
+                    profile_a_dict, profile_b_dict
+                )
+                score = ml_similarity * 100.0
+                
+                # Blend with heuristics (weighted average)
+                heuristic_score = self._compute_heuristic_score(profile_a, profile_b)
+                score = (ml_similarity * 0.7 + (heuristic_score / 100.0) * 0.3) * 100.0
+                
+            except Exception:
+                # Fall back to pure heuristics
+                score = self._compute_heuristic_score(profile_a, profile_b)
+        else:
+            # Pure heuristic-based scoring
+            score = self._compute_heuristic_score(profile_a, profile_b)
+
+        # Cache the score
+        cache_service.set(cache_key, str(score), self.COMPATIBILITY_CACHE_TTL, serialize=False)
+
+        return min(score, 100.0)
+
+    def _compute_heuristic_score(self, profile_a: Profile, profile_b: Profile) -> float:
+        """Compute compatibility score using rule-based heuristics (fallback method)."""
         score = 0.0
         max_score = 100.0
 
@@ -256,11 +351,8 @@ class DiscoveryFeedService:
                 score += 10
 
         # Verification boost (10 points)
-        if profile_b.verification.get("soft_verified") or profile_b.verification.get("manual_reviewed"):
+        if profile_b.verification and (profile_b.verification.get("soft_verified") or profile_b.verification.get("manual_reviewed")):
             score += 10
-
-        # Cache the score
-        cache_service.set(cache_key, str(score), self.COMPATIBILITY_CACHE_TTL, serialize=False)
 
         return min(score, max_score)
 
@@ -343,7 +435,41 @@ class DiscoveryFeedService:
         return excluded
 
     def _get_match_reasons(self, profile_a: Profile, profile_b: Profile) -> List[str]:
-        """Get reasons why two profiles are compatible (for standouts)."""
+        """Get match reasons using ML service when available, falling back to heuristics."""
+        # Try ML-based match reasons if available
+        if ML_AVAILABLE and settings.ml_enabled:
+            try:
+                reranking_service = get_reranking_service()
+                from app.services.profile_cache import profile_cache_service
+                
+                profile_a_dict = profile_cache_service._profile_to_base(profile_a).model_dump()
+                profile_b_dict = profile_cache_service._profile_to_base(profile_b).model_dump()
+                
+                # Get diligence data if available
+                diligence_data = None
+                try:
+                    from app.services.diligence import diligence_service
+                    diligence_summary = diligence_service.get_diligence_summary(
+                        None, profile_b.id  # Session can be None for cached data
+                    )
+                    if diligence_summary:
+                        diligence_data = diligence_summary
+                except Exception:
+                    pass
+                
+                ml_reasons = reranking_service.compute_match_reasons(
+                    profile_a_dict, profile_b_dict, diligence_data=diligence_data
+                )
+                if ml_reasons:
+                    return ml_reasons
+            except Exception:
+                pass  # Fall back to heuristics
+        
+        # Fallback to heuristic-based reasons
+        return self._get_heuristic_match_reasons(profile_a, profile_b)
+
+    def _get_heuristic_match_reasons(self, profile_a: Profile, profile_b: Profile) -> List[str]:
+        """Get heuristic-based reasons why two profiles are compatible (fallback method)."""
         reasons = []
 
         if profile_a.focus_sectors and profile_b.focus_sectors:
@@ -355,7 +481,7 @@ class DiscoveryFeedService:
             if profile_a.location.lower() == profile_b.location.lower():
                 reasons.append(f"Both based in {profile_a.location}")
 
-        if profile_b.verification.get("manual_reviewed"):
+        if profile_b.verification and profile_b.verification.get("manual_reviewed"):
             reasons.append("Verified profile")
 
         if profile_a.focus_stages and profile_b.focus_stages:
