@@ -181,7 +181,21 @@ class EmbeddingService:
         
         # Cosine similarity: dot product of normalized vectors
         try:
-            import numpy as np
+            try:
+                import numpy as np
+            except ImportError:
+                logger.warning("numpy not available, using fallback similarity calculation")
+                # Fallback: simple dot product with manual normalization
+                dot_product = sum(a * b for a, b in zip(embedding1, embedding2))
+                norm1 = sum(a * a for a in embedding1) ** 0.5
+                norm2 = sum(b * b for b in embedding2) ** 0.5
+                
+                if norm1 == 0 or norm2 == 0:
+                    return 0.0
+                
+                similarity = dot_product / (norm1 * norm2)
+                return float(max(-1.0, min(1.0, similarity)))
+            
             vec1 = np.array(embedding1)
             vec2 = np.array(embedding2)
             
