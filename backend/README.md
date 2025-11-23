@@ -152,6 +152,32 @@ The backend uses Redis for multi-level caching with TTL management:
 
 All caches automatically invalidate related entries when data changes (e.g., profile updates invalidate feed and compatibility caches).
 
+## Machine Learning
+
+The backend includes ML-powered recommendation features using sentence transformers and PyTorch:
+
+- **Sentence Transformer Embeddings**: Semantic similarity matching
+- **Recommendation Engine**: Profile ranking and matching
+- **Re-ranking Service**: Combines ML + diligence + engagement signals
+
+**Quick Start:**
+```bash
+# Install ML dependencies
+pip install -e ".[ml]"
+
+# Enable ML in .env
+ML_ENABLED=true
+
+# Models auto-download on first use (~80MB)
+```
+
+**📖 Full ML Setup Guide**: See [ML_SETUP.md](ML_SETUP.md) for:
+- Installation instructions (CPU/GPU/MPS)
+- Model download process
+- Configuration options
+- Performance tuning
+- Troubleshooting
+
 ## Next Steps
 
 1. ✅ Core models and endpoints implemented
@@ -161,5 +187,5 @@ All caches automatically invalidate related entries when data changes (e.g., pro
 5. ✅ Error handling and validation improvements
 6. ✅ Alembic migrations
 7. ✅ Redis caching layer with TTL management
-8. ⏳ Seed data scripts
-9. ⏳ ML integration (PyTorch recommendation engine)
+8. ✅ ML integration (PyTorch recommendation engine)
+9. ⏳ Seed data scripts
