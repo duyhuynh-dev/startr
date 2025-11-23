@@ -41,7 +41,16 @@ class MessagingService:
         
         session.commit()
         session.refresh(message)
-        return MessageResponse(**message.model_dump())
+        # Convert SQLModel to Pydantic
+        return MessageResponse(
+            id=message.id,
+            match_id=message.match_id,
+            sender_id=message.sender_id,
+            content=message.content,
+            attachment_url=message.attachment_url,
+            read_at=message.read_at,
+            created_at=message.created_at,
+        )
 
     def list_messages(
         self, session: Session, match_id: str, profile_id: str, limit: int = 50
@@ -61,7 +70,7 @@ class MessagingService:
                 Message.sender_id != profile_id,
                 Message.read_at.is_(None),
             )
-        ).all()
+        ).scalars().all()  # Use scalars() to get Message instances
         for msg in messages_to_mark:
             msg.read_at = datetime.utcnow()
 
@@ -73,8 +82,20 @@ class MessagingService:
             .where(Message.match_id == match_id)
             .order_by(Message.created_at.asc())
             .limit(limit)
-        ).all()
-        return [MessageResponse(**msg.model_dump()) for msg in results]
+        ).scalars().all()  # Use scalars() to get Message instances
+        # Convert SQLModel to Pydantic
+        return [
+            MessageResponse(
+                id=msg.id,
+                match_id=msg.match_id,
+                sender_id=msg.sender_id,
+                content=msg.content,
+                attachment_url=msg.attachment_url,
+                read_at=msg.read_at,
+                created_at=msg.created_at,
+            )
+            for msg in results
+        ]
 
     def list_conversations(
         self, session: Session, profile_id: str
@@ -85,7 +106,7 @@ class MessagingService:
             select(Match).where(
                 (Match.founder_id == profile_id) | (Match.investor_id == profile_id)
             )
-        ).all()
+        ).scalars().all()  # Use scalars() to get Match instances
 
         threads = []
         for match in matches:
@@ -105,18 +126,27 @@ class MessagingService:
                 .where(Message.match_id == match.id)
                 .order_by(Message.created_at.desc())
                 .limit(1)
-            ).first()
+            ).scalars().first()  # Use scalars() to get Message instance
 
             # Count unread messages (messages not sent by user and not read)
-            unread_count = session.exec(
+            unread_result = session.exec(
                 select(func.count(Message.id))
                 .where(
                     Message.match_id == match.id,
                     Message.sender_id != profile_id,
                     Message.read_at.is_(None),
                 )
-            ).first() or 0
+            ).scalar()
+            unread_count = int(unread_result) if unread_result is not None else 0
 
+            # Handle last_message safely
+            if last_message and hasattr(last_message, 'content'):
+                last_message_preview = last_message.content[:100] if last_message.content else None
+                last_message_at = last_message.created_at if hasattr(last_message, 'created_at') else match.updated_at
+            else:
+                last_message_preview = match.last_message_preview
+                last_message_at = match.updated_at
+            
             threads.append(
                 ConversationThread(
                     match_id=match.id,
@@ -125,8 +155,8 @@ class MessagingService:
                     other_party_id=other_party_id,
                     other_party_name=other_party.full_name,
                     other_party_avatar_url=other_party.avatar_url,
-                    last_message_preview=last_message.content[:100] if last_message else match.last_message_preview,
-                    last_message_at=last_message.created_at if last_message else match.updated_at,
+                    last_message_preview=last_message_preview,
+                    last_message_at=last_message_at,
                     unread_count=unread_count,
                     status=match.status,
                 )

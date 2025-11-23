@@ -22,7 +22,58 @@ router = APIRouter()
 # For now, these endpoints are unprotected
 
 
-@router.get("/verifications/pending", response_model=List[PendingVerificationProfile])
+@router.get(
+    "/verifications/pending",
+    response_model=List[PendingVerificationProfile],
+    summary="Get pending verifications",
+    description="""
+    Get all profiles awaiting manual verification review.
+    
+    Returns profiles that need admin review, typically:
+    - New profiles that need verification
+    - Profiles with uploaded documents pending review
+    - Flagged profiles requiring attention
+    
+    **Example Request:**
+    ```
+    GET /api/v1/admin/verifications/pending?limit=50
+    ```
+    
+    **Example Response:**
+    ```json
+    [
+        {
+            "id": "profile-id",
+            "full_name": "John Doe",
+            "email": "john@example.com",
+            "role": "investor",
+            "verification": {
+                "soft_verified": False,
+                "manual_reviewed": False,
+                "badges": []
+            },
+            "created_at": "2025-01-20T12:00:00Z"
+        }
+    ]
+    ```
+    """,
+    responses={
+        200: {
+            "description": "Pending verifications returned successfully",
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "id": "profile-id",
+                            "full_name": "John Doe",
+                            "role": "investor"
+                        }
+                    ]
+                }
+            }
+        },
+    },
+)
 def get_pending_verifications(
     limit: int = Query(50, ge=1, le=100, description="Maximum number of profiles to return"),
     session: Session = Depends(get_session),
@@ -31,7 +82,52 @@ def get_pending_verifications(
     return admin_service.get_pending_verifications(session, limit)
 
 
-@router.post("/verifications/review", response_model=VerificationReviewResponse)
+@router.post(
+    "/verifications/review",
+    response_model=VerificationReviewResponse,
+    summary="Review verification",
+    description="""
+    Review and approve/reject a profile's verification.
+    
+    Admin can approve or reject a profile's verification request, optionally adding notes.
+    Approved profiles get a "manual_reviewed" badge.
+    
+    **Example Request:**
+    ```json
+    {
+        "profile_id": "profile-id",
+        "approved": True,
+        "notes": "Profile verified, all documents in order"
+    }
+    ```
+    
+    **Example Response:**
+    ```json
+    {
+        "profile_id": "profile-id",
+        "approved": True,
+        "notes": "Profile verified, all documents in order",
+        "reviewed_at": "2025-01-20T14:00:00Z"
+    }
+    ```
+    """,
+    responses={
+        200: {
+            "description": "Verification reviewed successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "profile_id": "profile-id",
+                        "approved": True,
+                        "notes": "Verified",
+                        "reviewed_at": "2025-01-20T12:00:00Z"
+                    }
+                }
+            }
+        },
+        400: {"description": "Invalid request"},
+    },
+)
 def review_verification(
     request: VerificationReviewRequest,
     session: Session = Depends(get_session),
@@ -77,7 +173,48 @@ def list_startups_of_month(
     return admin_service.list_startups_of_month(session, year, limit)
 
 
-@router.get("/stats", response_model=AdminStatsResponse)
+@router.get(
+    "/stats",
+    response_model=AdminStatsResponse,
+    summary="Get admin statistics",
+    description="""
+    Get admin dashboard statistics.
+    
+    Returns aggregated metrics for the admin dashboard including:
+    - Total profiles (investors and founders)
+    - Pending verifications count
+    - Matches and messages statistics
+    - Verification completion rates
+    
+    **Example Response:**
+    ```json
+    {
+        "total_profiles": 150,
+        "investor_count": 75,
+        "founder_count": 75,
+        "pending_verifications": 12,
+        "total_matches": 45,
+        "total_messages": 230,
+        "verification_completion_rate": 0.85
+    }
+    ```
+    """,
+    responses={
+        200: {
+            "description": "Statistics returned successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "total_profiles": 100,
+                        "investor_count": 50,
+                        "founder_count": 50,
+                        "pending_verifications": 5
+                    }
+                }
+            }
+        },
+    },
+)
 def get_admin_stats(session: Session = Depends(get_session)) -> AdminStatsResponse:
     """Get admin dashboard statistics."""
     return admin_service.get_admin_stats(session)

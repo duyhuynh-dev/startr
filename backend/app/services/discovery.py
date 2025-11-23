@@ -8,7 +8,7 @@ from redis.exceptions import RedisError
 from sqlalchemy import select, func, or_, and_
 from sqlmodel import Session
 
-from app.core.cache import CACHE_TTL_SHORT, CACHE_TTL_LONG, cache_service
+from app.core.cache import LIKES_QUEUE_PREFIX, CACHE_TTL_SHORT, CACHE_TTL_LONG, cache_service
 from app.core.config import settings
 from app.core.redis import redis_client
 from app.models.match import Like
@@ -111,7 +111,7 @@ class DiscoveryFeedService:
         Get users who have liked you (likes queue).
         Checks Redis first, falls back to database.
         """
-        queue_key = f"{cache_service.LIKES_QUEUE_PREFIX}{profile_id}"
+        queue_key = f"{LIKES_QUEUE_PREFIX}{profile_id}"
         
         try:
             # Try Redis queue
@@ -135,10 +135,10 @@ class DiscoveryFeedService:
         except RedisError:
             pass
 
-        # Fallback to database
+        # Fallback to database - ensure we get Like objects
         likes = session.exec(
             select(Like).where(Like.recipient_id == profile_id).order_by(Like.created_at.desc()).limit(50)
-        ).all()
+        ).scalars().all()
         
         result = []
         for like in likes:
@@ -171,6 +171,7 @@ class DiscoveryFeedService:
         excluded_ids = self._get_excluded_profile_ids(session, profile_id)
         excluded_ids.add(profile_id)
         
+        # Ensure we get Profile objects, not Row objects
         candidates = session.exec(
             select(Profile).where(
                 and_(
@@ -178,7 +179,7 @@ class DiscoveryFeedService:
                     Profile.id.notin_(list(excluded_ids)) if excluded_ids else True,
                 )
             )
-        ).all()
+        ).scalars().all()
 
         # Compute compatibility scores
         scored_profiles = []
@@ -187,7 +188,7 @@ class DiscoveryFeedService:
             if score >= 70:  # Only show high-compatibility profiles
                 match_reasons = self._get_match_reasons(current_profile, candidate)
                 standout = StandoutProfile(
-                    **self._profile_to_base(candidate).model_dump(),
+                    **self._profile_to_base(candidate),
                     compatibility_score=score,
                     match_reasons=match_reasons,
                 )
@@ -204,6 +205,7 @@ class DiscoveryFeedService:
         # Get all profiles of target role, excluding current user and already matched/liked
         excluded_ids = self._get_excluded_profile_ids(session, current_profile.id)
         
+        # Ensure we get Profile objects, not Row objects
         candidates = session.exec(
             select(Profile).where(
                 and_(
@@ -212,7 +214,7 @@ class DiscoveryFeedService:
                     Profile.id.notin_(excluded_ids) if excluded_ids else True,
                 )
             )
-        ).all()
+        ).scalars().all()
 
         if not candidates:
             return []
@@ -238,8 +240,8 @@ class DiscoveryFeedService:
                         diligence_summary = diligence_service.get_diligence_summary(
                             session, candidate.id
                         )
-                        if diligence_summary and diligence_summary.get("overall_score"):
-                            diligence_scores[candidate.id] = diligence_summary["overall_score"] / 100.0
+                        if diligence_summary and diligence_summary.get("score"):
+                            diligence_scores[candidate.id] = diligence_summary["score"] / 100.0
                 except Exception:
                     pass  # Fall back to defaults if diligence unavailable
                 
@@ -360,20 +362,23 @@ class DiscoveryFeedService:
         self, session: Session, viewer_id: str, profile_ids: List[str], target_role: str
     ) -> List[ProfileCard]:
         """Fetch profiles and enrich with metadata (compatibility, like counts, etc.)."""
-        profiles = session.exec(select(Profile).where(Profile.id.in_(profile_ids))).all()
+        # Get profiles - ensure we use scalars() to get Profile objects, not Row objects
+        profiles = session.exec(select(Profile).where(Profile.id.in_(profile_ids))).scalars().all()
         
         # Get like counts
         like_counts = {}
+        from sqlalchemy import func
         for profile in profiles:
-            count = session.exec(
+            count_result = session.exec(
                 select(func.count(Like.id)).where(Like.recipient_id == profile.id)
-            ).first() or 0
-            like_counts[profile.id] = count
+            ).scalar_one_or_none()
+            # func.count returns an integer, scalar_one_or_none() extracts it directly
+            like_counts[profile.id] = int(count_result) if count_result is not None else 0
 
         # Check which profiles have liked the viewer
         likes_sent_to_viewer = session.exec(
             select(Like.sender_id).where(Like.recipient_id == viewer_id)
-        ).all()
+        ).scalars().all()
         has_liked_you_set = set(likes_sent_to_viewer)
 
         # Build profile cards
@@ -391,9 +396,11 @@ class DiscoveryFeedService:
             if viewer_profile:
                 compatibility_score = self._compute_compatibility_score(session, viewer_profile, profile)
             
+            # _profile_to_base returns a dict, not a Pydantic model
+            profile_dict = self._profile_to_base(profile)
             cards.append(
                 ProfileCard(
-                    **self._profile_to_base(profile).model_dump(),
+                    **profile_dict,
                     compatibility_score=compatibility_score,
                     like_count=like_counts.get(profile.id, 0),
                     has_liked_you=profile.id in has_liked_you_set,
@@ -421,13 +428,13 @@ class DiscoveryFeedService:
             else:
                 excluded.add(match.founder_id)
 
-        # Already liked or received likes from
+        # Already liked or received likes from - use scalars() to get values
         likes_given = session.exec(
             select(Like.recipient_id).where(Like.sender_id == profile_id)
-        ).all()
+        ).scalars().all()
         likes_received = session.exec(
             select(Like.sender_id).where(Like.recipient_id == profile_id)
-        ).all()
+        ).scalars().all()
 
         excluded.update(likes_given)
         excluded.update(likes_received)

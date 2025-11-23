@@ -14,6 +14,7 @@ except ImportError:
     SentenceTransformer = None
     torch = None
 
+from app.core.cache import CACHE_TTL_LONG, cache_service
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -55,11 +56,12 @@ class EmbeddingService:
             logger.error(f"Failed to load embedding model: {e}")
             self.model = None
 
-    def embed_text(self, text: str) -> List[float]:
+    def embed_text(self, text: str, use_cache: bool = True) -> List[float]:
         """Generate embedding for a single text string.
         
         Args:
             text: Input text to embed
+            use_cache: Whether to use cached embeddings if available
             
         Returns:
             List of floats representing the embedding vector
@@ -69,9 +71,24 @@ class EmbeddingService:
             # Return zero vector of typical embedding size (384 for all-MiniLM-L6-v2)
             return [0.0] * 384
         
+        # Try cache first
+        if use_cache:
+            cache_key = cache_service.get_text_embedding_key(text)
+            cached = cache_service.get(cache_key)
+            if cached is not None:
+                logger.debug(f"Cache hit for text embedding: {text[:50]}...")
+                return cached  # type: ignore
+        
         try:
             embedding = self.model.encode(text, convert_to_numpy=True, normalize_embeddings=True)
-            return embedding.tolist()
+            embedding_list = embedding.tolist()
+            
+            # Cache the embedding
+            if use_cache:
+                cache_key = cache_service.get_text_embedding_key(text)
+                cache_service.set(cache_key, embedding_list, CACHE_TTL_LONG)
+            
+            return embedding_list
         except Exception as e:
             logger.error(f"Error generating embedding: {e}")
             return [0.0] * 384
@@ -105,7 +122,7 @@ class EmbeddingService:
             logger.error(f"Error generating batch embeddings: {e}")
             return [[0.0] * 384] * len(texts)
 
-    def embed_profile_text(self, profile_data: dict) -> List[float]:
+    def embed_profile_text(self, profile_data: dict, profile_id: str | None = None, use_cache: bool = True) -> List[float]:
         """Generate a single embedding for a profile by combining its text fields.
         
         Combines:
@@ -118,10 +135,20 @@ class EmbeddingService:
         
         Args:
             profile_data: Profile dict with fields like full_name, headline, prompts, etc.
+            profile_id: Optional profile ID for caching (if provided, caches by profile ID)
+            use_cache: Whether to use cached embeddings if available
             
         Returns:
             Combined embedding vector for the profile
         """
+        # Try profile-specific cache first
+        if use_cache and profile_id:
+            cache_key = cache_service.get_embedding_key(profile_id)
+            cached = cache_service.get(cache_key)
+            if cached is not None:
+                logger.debug(f"Cache hit for profile embedding: {profile_id}")
+                return cached  # type: ignore
+        
         text_parts = []
         
         # Basic info
@@ -160,7 +187,14 @@ class EmbeddingService:
             logger.warning("Empty profile text, returning zero vector")
             return [0.0] * 384
         
-        return self.embed_text(combined_text)
+        embedding = self.embed_text(combined_text, use_cache=use_cache)
+        
+        # Cache by profile ID if provided
+        if use_cache and profile_id:
+            cache_key = cache_service.get_embedding_key(profile_id)
+            cache_service.set(cache_key, embedding, CACHE_TTL_LONG)
+        
+        return embedding
 
     def compute_similarity(self, embedding1: List[float], embedding2: List[float]) -> float:
         """Compute cosine similarity between two embeddings.

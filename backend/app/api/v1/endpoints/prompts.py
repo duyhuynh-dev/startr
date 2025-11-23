@@ -22,9 +22,49 @@ router = APIRouter()
     response_model=PromptTemplateResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create prompt template",
-    description="Create a new prompt template for use in profile building (e.g., 'What gets you excited about a startup?').",
+    description="""
+    Create a new prompt template for use in profile building (e.g., 'What gets you excited about a startup?').
+    
+    **Example Request:**
+    ```json
+    {
+        "text": "What gets you excited about a startup?",
+        "role": "investor",
+        "category": "mission",
+        "display_order": 1,
+        "is_active": true
+    }
+    ```
+    
+    **Example Response:**
+    ```json
+    {
+        "id": "template-id",
+        "text": "What gets you excited about a startup?",
+        "role": "investor",
+        "category": "mission",
+        "display_order": 1,
+        "is_active": true,
+        "created_at": "2025-01-20T12:00:00Z",
+        "updated_at": "2025-01-20T12:00:00Z"
+    }
+    ```
+    """,
     responses={
-        201: {"description": "Template created successfully"},
+        201: {
+            "description": "Template created successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": "template-id",
+                        "text": "What gets you excited?",
+                        "role": "investor",
+                        "display_order": 1,
+                        "is_active": True
+                    }
+                }
+            }
+        },
     },
 )
 def create_template(
@@ -59,9 +99,53 @@ def get_template(
     "",
     response_model=List[PromptTemplateResponse],
     summary="List prompt templates",
-    description="List all prompt templates, optionally filtered by role and active status. Ordered by display_order.",
+    description="""
+    List all prompt templates, optionally filtered by role and active status. Ordered by display_order.
+    
+    **Example Request:**
+    ```
+    GET /api/v1/prompts?role=investor&is_active=true
+    ```
+    
+    **Example Response:**
+    ```json
+    [
+        {
+            "id": "template-1",
+            "text": "What gets you excited about a startup?",
+            "role": "investor",
+            "category": "mission",
+            "display_order": 1,
+            "is_active": True
+        },
+        {
+            "id": "template-2",
+            "text": "What's your investment thesis?",
+            "role": "investor",
+            "category": "thesis",
+            "display_order": 2,
+            "is_active": True
+        }
+    ]
+    ```
+    """,
     responses={
-        200: {"description": "Templates returned successfully"},
+        200: {
+            "description": "Templates returned successfully",
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "id": "template-id",
+                            "text": "Question text",
+                            "role": "investor",
+                            "display_order": 1,
+                            "is_active": True
+                        }
+                    ]
+                }
+            }
+        },
     },
 )
 def list_templates(

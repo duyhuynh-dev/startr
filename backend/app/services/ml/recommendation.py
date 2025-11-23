@@ -47,8 +47,8 @@ class RecommendationEngine:
         """Compute similarity score between two profiles using embeddings.
         
         Args:
-            profile_a_data: First profile data dict
-            profile_b_data: Second profile data dict
+            profile_a_data: First profile data dict (should include 'id' field for caching)
+            profile_b_data: Second profile data dict (should include 'id' field for caching)
             
         Returns:
             Similarity score between 0 and 1
@@ -57,9 +57,21 @@ class RecommendationEngine:
             return 0.0
         
         try:
-            # Generate embeddings for both profiles
-            embedding_a = self.embedding_service.embed_profile_text(profile_a_data)
-            embedding_b = self.embedding_service.embed_profile_text(profile_b_data)
+            # Get profile IDs for caching
+            profile_a_id = profile_a_data.get("id")
+            profile_b_id = profile_b_data.get("id")
+            
+            # Generate embeddings for both profiles (with caching)
+            embedding_a = self.embedding_service.embed_profile_text(
+                profile_a_data, 
+                profile_id=profile_a_id,
+                use_cache=True
+            )
+            embedding_b = self.embedding_service.embed_profile_text(
+                profile_b_data,
+                profile_id=profile_b_id,
+                use_cache=True
+            )
             
             # Compute cosine similarity
             similarity = self.embedding_service.compute_similarity(embedding_a, embedding_b)
@@ -111,26 +123,67 @@ class RecommendationEngine:
         """
         if not settings.ml_enabled or not self.embedding_service.is_available():
             # Fallback: return candidates in original order with 0.0 scores
-            return [(p, 0.0) for p in candidate_profiles[:limit] if limit else candidate_profiles]
+            if limit:
+                return [(p, 0.0) for p in candidate_profiles[:limit]]
+            return [(p, 0.0) for p in candidate_profiles]
         
         if not candidate_profiles:
             return []
         
         try:
-            # Generate embedding for current profile once
-            current_embedding = self.embedding_service.embed_profile_text(current_profile)
+            # Get current profile ID for caching
+            current_profile_id = current_profile.get("id")
             
-            # Generate embeddings for all candidates (batch for efficiency)
-            candidate_texts = [
-                self._profile_to_text(p) for p in candidate_profiles
-            ]
-            candidate_embeddings = self.embedding_service.embed_batch(candidate_texts)
+            # Generate embedding for current profile once (with caching)
+            current_embedding = self.embedding_service.embed_profile_text(
+                current_profile,
+                profile_id=current_profile_id,
+                use_cache=True
+            )
+            
+            # For candidates, check cache first, then batch process uncached ones
+            cached_embeddings = {}
+            uncached_profiles = []
+            uncached_indices = []
+            
+            for idx, candidate in enumerate(candidate_profiles):
+                candidate_id = candidate.get("id")
+                if candidate_id:
+                    from app.core.cache import cache_service
+                    cache_key = cache_service.get_embedding_key(candidate_id)
+                    cached = cache_service.get(cache_key)
+                    if cached is not None:
+                        cached_embeddings[idx] = cached
+                        continue
+                
+                uncached_profiles.append(candidate)
+                uncached_indices.append(idx)
+            
+            # Generate embeddings for uncached candidates (batch for efficiency)
+            if uncached_profiles:
+                candidate_texts = [
+                    self._profile_to_text(p) for p in uncached_profiles
+                ]
+                candidate_embeddings_batch = self.embedding_service.embed_batch(candidate_texts)
+                
+                # Cache the new embeddings
+                for idx, candidate, embedding in zip(
+                    uncached_indices, uncached_profiles, candidate_embeddings_batch
+                ):
+                    candidate_id = candidate.get("id")
+                    if candidate_id:
+                        from app.core.cache import cache_service, CACHE_TTL_LONG
+                        cache_key = cache_service.get_embedding_key(candidate_id)
+                        cache_service.set(cache_key, embedding, CACHE_TTL_LONG)
+                    cached_embeddings[idx] = embedding
             
             # Compute similarities
             scored_candidates = []
-            for candidate_profile, candidate_embedding in zip(
-                candidate_profiles, candidate_embeddings
-            ):
+            for idx, candidate_profile in enumerate(candidate_profiles):
+                candidate_embedding = cached_embeddings.get(idx)
+                if candidate_embedding is None:
+                    continue
+                
                 similarity = self.embedding_service.compute_similarity(
                     current_embedding, candidate_embedding
                 )
@@ -146,7 +199,9 @@ class RecommendationEngine:
         except Exception as e:
             logger.error(f"Error ranking candidates: {e}")
             # Fallback: return original order
-            return [(p, 0.0) for p in candidate_profiles[:limit] if limit else candidate_profiles]
+            if limit:
+                return [(p, 0.0) for p in candidate_profiles[:limit]]
+            return [(p, 0.0) for p in candidate_profiles]
 
     def find_similar_profiles(
         self,

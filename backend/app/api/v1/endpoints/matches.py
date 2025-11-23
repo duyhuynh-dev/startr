@@ -27,15 +27,74 @@ router = APIRouter()
     - `status: "matched"` if mutual like (match created immediately)
     - `status: "pending"` if one-way like (waiting for response)
     - `match` object is included if matched
+    
+    **Example Request:**
+    ```json
+    {
+        "sender_id": "123e4567-e89b-12d3-a456-426614174000",
+        "recipient_id": "123e4567-e89b-12d3-a456-426614174001",
+        "note": "Love your vision! Let's chat."
+    }
+    ```
+    
+    **Example Response (Pending):**
+    ```json
+    {
+        "status": "pending",
+        "match": null
+    }
+    ```
+    
+    **Example Response (Matched):**
+    ```json
+    {
+        "status": "matched",
+        "match": {
+            "id": "123e4567-e89b-12d3-a456-426614174002",
+            "founder_id": "123e4567-e89b-12d3-a456-426614174000",
+            "investor_id": "123e4567-e89b-12d3-a456-426614174001",
+            "status": "active",
+            "created_at": "2025-01-20T12:00:00Z"
+        }
+    }
+    ```
     """,
     responses={
-        200: {"description": "Like sent successfully (may result in match)"},
+        200: {
+            "description": "Like sent successfully (may result in match)",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "pending": {
+                            "summary": "One-way like",
+                            "value": {
+                                "status": "pending",
+                                "match": None
+                            }
+                        },
+                        "matched": {
+                            "summary": "Mutual like - match created",
+                            "value": {
+                                "status": "matched",
+                                "match": {
+                                    "id": "match-id",
+                                    "founder_id": "founder-id",
+                                    "investor_id": "investor-id",
+                                    "status": "active",
+                                    "created_at": "2025-01-20T12:00:00Z"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         400: {"description": "Invalid like payload (e.g., cannot like yourself)"},
     },
 )
-@limiter.limit("50/hour")  # Rate limit likes to prevent spam
+# Note: Rate limiting temporarily removed due to slowapi/FastAPI body parsing conflict
+# TODO: Re-implement with middleware-based rate limiting
 def send_like(
-    request: Request,
     payload: LikePayload,
     session: Session = Depends(get_session),
 ) -> dict:
@@ -57,9 +116,55 @@ def send_like(
     - Match timestamps
     
     Use this to populate the matches/conversations view.
+    
+    **Example Request:**
+    ```
+    GET /api/v1/matches?profile_id=123e4567-e89b-12d3-a456-426614174000
+    ```
+    
+    **Example Response:**
+    ```json
+    [
+        {
+            "id": "match-id-1",
+            "founder_id": "founder-id-1",
+            "investor_id": "investor-id",
+            "status": "active",
+            "last_message_preview": "Hey! Interested in discussing...",
+            "created_at": "2025-01-20T12:00:00Z",
+            "updated_at": "2025-01-20T14:30:00Z"
+        },
+        {
+            "id": "match-id-2",
+            "founder_id": "founder-id-2",
+            "investor_id": "investor-id",
+            "status": "pending",
+            "last_message_preview": null,
+            "created_at": "2025-01-19T10:00:00Z",
+            "updated_at": "2025-01-19T10:00:00Z"
+        }
+    ]
+    ```
     """,
     responses={
-        200: {"description": "List of matches returned successfully"},
+        200: {
+            "description": "List of matches returned successfully",
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "id": "match-id",
+                            "founder_id": "founder-id",
+                            "investor_id": "investor-id",
+                            "status": "active",
+                            "last_message_preview": "Last message preview",
+                            "created_at": "2025-01-20T12:00:00Z",
+                            "updated_at": "2025-01-20T14:30:00Z"
+                        }
+                    ]
+                }
+            }
+        },
     },
 )
 def list_matches(

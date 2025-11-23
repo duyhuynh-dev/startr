@@ -29,7 +29,8 @@ class AdminService:
         """Get profiles awaiting manual verification review."""
         # Fetch all profiles and filter in Python (JSON field queries can be complex)
         # TODO: Optimize with proper JSONB queries for PostgreSQL when needed
-        all_profiles = session.exec(select(Profile)).all()
+        # Use scalars() to get Profile objects, not Row objects
+        all_profiles = session.exec(select(Profile)).scalars().all()
 
         pending = []
         for profile in all_profiles:
@@ -47,9 +48,11 @@ class AdminService:
         result = []
         for profile in pending:
             verification = profile.verification or {}
+            # _profile_to_base returns a dict, not a Pydantic model
+            profile_dict = self._profile_to_base(profile)
             result.append(
                 PendingVerificationProfile(
-                    **self._profile_to_base(profile).model_dump(),
+                    **profile_dict,
                     verification_submitted_at=profile.updated_at,
                     verification_status="pending",
                 )
@@ -109,11 +112,12 @@ class AdminService:
             year = year or now.year
             month = month or now.month
 
+        # Use scalars() to get StartupOfMonth object, not Row object
         featured = session.exec(
             select(StartupOfMonth).where(
                 and_(StartupOfMonth.year == year, StartupOfMonth.month == month)
             )
-        ).first()
+        ).scalars().first()
 
         if not featured:
             return None
@@ -122,9 +126,12 @@ class AdminService:
         if not profile:
             return None
 
+        # Convert profile to BaseProfile - _profile_to_base returns a dict
+        profile_dict = self._profile_to_base(profile)
+        
         return StartupOfMonthResponse(
             id=featured.id,
-            profile=BaseProfile(**self._profile_to_base(profile).model_dump()),
+            profile=BaseProfile(**profile_dict),
             year=featured.year,
             month=featured.month,
             reason=featured.reason,
@@ -176,9 +183,12 @@ class AdminService:
             session.commit()
             session.refresh(featured)
 
+        # Convert profile to BaseProfile - _profile_to_base returns a dict
+        profile_dict = self._profile_to_base(profile)
+        
         return StartupOfMonthResponse(
             id=featured.id,
-            profile=BaseProfile(**self._profile_to_base(profile).model_dump()),
+            profile=BaseProfile(**profile_dict),
             year=featured.year,
             month=featured.month,
             reason=featured.reason,
@@ -203,10 +213,13 @@ class AdminService:
         for featured in featured_list:
             profile = session.get(Profile, featured.profile_id)
             if profile:
+                # Convert profile to BaseProfile - _profile_to_base returns a dict
+                profile_dict = self._profile_to_base(profile)
+                
                 result.append(
                     StartupOfMonthResponse(
                         id=featured.id,
-                        profile=BaseProfile(**self._profile_to_base(profile).model_dump()),
+                        profile=BaseProfile(**profile_dict),
                         year=featured.year,
                         month=featured.month,
                         reason=featured.reason,
@@ -219,10 +232,11 @@ class AdminService:
 
     def get_admin_stats(self, session: Session) -> AdminStatsResponse:
         """Get admin dashboard statistics."""
-        total_profiles = session.exec(select(func.count(Profile.id))).first() or 0
+        total_profiles_result = session.exec(select(func.count(Profile.id))).scalar_one_or_none()
+        total_profiles = int(total_profiles_result) if total_profiles_result is not None else 0
 
-        # Count pending verifications
-        all_profiles = session.exec(select(Profile)).all()
+        # Count pending verifications - ensure we get Profile objects
+        all_profiles = session.exec(select(Profile)).scalars().all()
         pending_count = 0
         verified_count = 0
         
@@ -237,11 +251,13 @@ class AdminService:
             elif soft_verified or accreditation_attested:
                 pending_count += 1
 
-        total_matches = session.exec(select(func.count(Match.id))).first() or 0
+        total_matches_result = session.exec(select(func.count(Match.id))).scalar_one_or_none()
+        total_matches = int(total_matches_result) if total_matches_result is not None else 0
 
-        active_matches = session.exec(
+        active_matches_result = session.exec(
             select(func.count(Match.id)).where(Match.status == "active")
-        ).first() or 0
+        ).scalar_one_or_none()
+        active_matches = int(active_matches_result) if active_matches_result is not None else 0
 
         featured_startup = self.get_current_startup_of_month(session)
 

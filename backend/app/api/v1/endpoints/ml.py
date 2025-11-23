@@ -286,3 +286,226 @@ def rank_candidates(
             detail=f"Error ranking candidates: {str(e)}",
         )
 
+
+# Batch endpoints
+
+class BatchEmbeddingRequest(BaseModel):
+    """Request for batch text embeddings."""
+    texts: List[str] = Field(..., description="List of texts to generate embeddings for", min_length=1, max_length=100)
+
+
+class BatchEmbeddingResponse(BaseModel):
+    """Response with batch embeddings."""
+    embeddings: List[List[float]] = Field(..., description="List of embedding vectors")
+    dimension: int = Field(..., description="Dimension of each embedding vector")
+    count: int = Field(..., description="Number of embeddings generated")
+
+
+class BatchSimilarityRequest(BaseModel):
+    """Request for batch similarity computation."""
+    pairs: List[dict] = Field(..., description="List of text pairs: [{'text1': '...', 'text2': '...'}, ...]", min_length=1, max_length=100)
+
+
+class BatchSimilarityItem(BaseModel):
+    """Single similarity result."""
+    text1: str
+    text2: str
+    similarity: float
+
+
+class BatchSimilarityResponse(BaseModel):
+    """Response with batch similarities."""
+    results: List[BatchSimilarityItem] = Field(..., description="List of similarity results")
+
+
+class MLHealthResponse(BaseModel):
+    """ML service health check response."""
+    ml_enabled: bool = Field(..., description="Whether ML features are enabled")
+    embedding_service_available: bool = Field(..., description="Whether embedding service is available")
+    model_name: Optional[str] = Field(None, description="Name of loaded model")
+    device: Optional[str] = Field(None, description="Device being used (cpu/cuda/mps)")
+    embedding_dimension: Optional[int] = Field(None, description="Dimension of embeddings")
+    status: str = Field(..., description="Overall status: ready, degraded, unavailable")
+
+
+@router.post(
+    "/embeddings/batch",
+    response_model=BatchEmbeddingResponse,
+    summary="Generate batch embeddings",
+    description="Generate embeddings for multiple texts efficiently.",
+    tags=["ML"],
+)
+def generate_batch_embeddings(
+    request: BatchEmbeddingRequest,
+) -> BatchEmbeddingResponse:
+    """Generate embeddings for multiple texts."""
+    if not settings.ml_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="ML features are disabled",
+        )
+    
+    try:
+        from app.services.ml.embeddings import get_embedding_service
+        
+        embedding_service = get_embedding_service()
+        if not embedding_service.is_available():
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Embedding service not available. Install ML dependencies: pip install -e '.[ml]'",
+            )
+        
+        embeddings = embedding_service.embed_batch(request.texts)
+        dimension = len(embeddings[0]) if embeddings else 0
+        
+        return BatchEmbeddingResponse(
+            embeddings=embeddings,
+            dimension=dimension,
+            count=len(embeddings),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error generating batch embeddings: {str(e)}",
+        )
+
+
+@router.post(
+    "/similarity/batch",
+    response_model=BatchSimilarityResponse,
+    summary="Compute batch similarities",
+    description="Compute similarities for multiple text pairs efficiently.",
+    tags=["ML"],
+)
+def compute_batch_similarity(
+    request: BatchSimilarityRequest,
+) -> BatchSimilarityResponse:
+    """Compute similarities for multiple text pairs."""
+    if not settings.ml_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="ML features are disabled",
+        )
+    
+    try:
+        from app.services.ml.embeddings import get_embedding_service
+        
+        embedding_service = get_embedding_service()
+        if not embedding_service.is_available():
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Embedding service not available. Install ML dependencies: pip install -e '.[ml]'",
+            )
+        
+        # Extract all unique texts
+        all_texts = []
+        text_to_idx = {}
+        for pair in request.pairs:
+            if not isinstance(pair, dict):
+                continue
+            text1 = str(pair.get("text1", ""))
+            text2 = str(pair.get("text2", ""))
+            
+            if text1 and text1 not in text_to_idx:
+                text_to_idx[text1] = len(all_texts)
+                all_texts.append(text1)
+            if text2 and text2 not in text_to_idx:
+                text_to_idx[text2] = len(all_texts)
+                all_texts.append(text2)
+        
+        if not all_texts:
+            return BatchSimilarityResponse(results=[])
+        
+        # Generate embeddings in batch
+        embeddings = embedding_service.embed_batch(all_texts)
+        
+        # Compute similarities
+        results = []
+        for pair in request.pairs:
+            if not isinstance(pair, dict):
+                continue
+            text1 = str(pair.get("text1", ""))
+            text2 = str(pair.get("text2", ""))
+            
+            if not text1 or not text2:
+                continue
+            
+            idx1 = text_to_idx.get(text1)
+            idx2 = text_to_idx.get(text2)
+            
+            if idx1 is not None and idx2 is not None and idx1 < len(embeddings) and idx2 < len(embeddings):
+                similarity = embedding_service.compute_similarity(
+                    embeddings[idx1], embeddings[idx2]
+                )
+                results.append(BatchSimilarityItem(
+                    text1=text1,
+                    text2=text2,
+                    similarity=similarity,
+                ))
+        
+        return BatchSimilarityResponse(results=results)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error computing batch similarities: {str(e)}",
+        )
+
+
+@router.get(
+    "/health",
+    response_model=MLHealthResponse,
+    summary="ML service health check",
+    description="Check ML service availability, model status, and configuration.",
+    tags=["ML"],
+)
+def ml_health_check() -> MLHealthResponse:
+    """Check ML service health and status."""
+    ml_enabled = settings.ml_enabled
+    
+    if not ml_enabled:
+        return MLHealthResponse(
+            ml_enabled=False,
+            embedding_service_available=False,
+            status="unavailable",
+        )
+    
+    try:
+        from app.services.ml.embeddings import get_embedding_service
+        
+        embedding_service = get_embedding_service()
+        is_available = embedding_service.is_available()
+        
+        if not is_available:
+            return MLHealthResponse(
+                ml_enabled=True,
+                embedding_service_available=False,
+                status="degraded",
+            )
+        
+        # Get model info
+        model_name = embedding_service.model_name if hasattr(embedding_service, 'model_name') else None
+        device = embedding_service.device if hasattr(embedding_service, 'device') else None
+        
+        # Get embedding dimension by generating a test embedding
+        test_embedding = embedding_service.embed_text("test")
+        dimension = len(test_embedding) if test_embedding else None
+        
+        return MLHealthResponse(
+            ml_enabled=True,
+            embedding_service_available=True,
+            model_name=model_name,
+            device=device,
+            embedding_dimension=dimension,
+            status="ready",
+        )
+    except Exception as e:
+        return MLHealthResponse(
+            ml_enabled=True,
+            embedding_service_available=False,
+            status=f"error: {str(e)}",
+        )
+

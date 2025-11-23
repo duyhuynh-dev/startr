@@ -24,6 +24,8 @@ COMPATIBILITY_CACHE_PREFIX = "compat:"
 DILIGENCE_CACHE_PREFIX = "diligence:"
 LIKES_QUEUE_PREFIX = "likes_queue:"
 PROMPT_TEMPLATE_CACHE_PREFIX = "prompt_template:"
+EMBEDDING_CACHE_PREFIX = "embedding:"
+EMBEDDING_TEXT_CACHE_PREFIX = "embedding_text:"
 
 
 class CacheService:
@@ -110,6 +112,7 @@ class CacheService:
             f"{COMPATIBILITY_CACHE_PREFIX}{profile_id}:*",
             f"{COMPATIBILITY_CACHE_PREFIX}*:{profile_id}",
             f"{DILIGENCE_CACHE_PREFIX}{profile_id}",
+            f"{EMBEDDING_CACHE_PREFIX}{profile_id}",
         ]
         for pattern in patterns:
             CacheService.delete_pattern(pattern)
@@ -157,6 +160,23 @@ class CacheService:
     def get_prompt_template_key(template_id: str) -> str:
         """Get cache key for a prompt template."""
         return f"{PROMPT_TEMPLATE_CACHE_PREFIX}{template_id}"
+
+    @staticmethod
+    def get_embedding_key(profile_id: str) -> str:
+        """Get cache key for a profile embedding."""
+        return f"{EMBEDDING_CACHE_PREFIX}{profile_id}"
+
+    @staticmethod
+    def get_text_embedding_key(text: str) -> str:
+        """Get cache key for a text embedding (hash the text)."""
+        import hashlib
+        text_hash = hashlib.sha256(text.encode()).hexdigest()[:16]
+        return f"{EMBEDDING_TEXT_CACHE_PREFIX}{text_hash}"
+
+    @staticmethod
+    def invalidate_embedding(profile_id: str) -> None:
+        """Invalidate embedding cache for a profile."""
+        CacheService.delete(CacheService.get_embedding_key(profile_id))
 
     @staticmethod
     def exists(key: str) -> bool:

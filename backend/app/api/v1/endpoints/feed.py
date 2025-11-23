@@ -20,15 +20,59 @@ router = APIRouter()
     Get a ranked discovery feed of profiles to potentially match with.
     
     The feed is algorithmically ranked based on:
-    - Compatibility scores (sector/stage alignment, location, etc.)
-    - Mutual connections and network effects
-    - User behavior and preferences
+    - ML-based compatibility scores (embedding similarity)
+    - Rule-based compatibility (sector/stage alignment, location, etc.)
+    - Due diligence scores
+    - User engagement signals
     - Verification status and profile completeness
     
     Results are cached for performance and paginated using cursor-based pagination.
+    
+    **Example Request:**
+    ```
+    GET /api/v1/feed/discover?profile_id=user-id&role=founder&limit=20
+    ```
+    
+    **Example Response:**
+    ```json
+    {
+        "profiles": [
+            {
+                "id": "profile-id",
+                "full_name": "John Doe",
+                "headline": "CEO at StartupCo",
+                "compatibility_score": 85.5,
+                "match_reasons": ["Strong sector alignment", "High diligence score"],
+                "unread_likes": 3
+            }
+        ],
+                        "cursor": "next-page-cursor",
+                        "has_more": True
+    }
+    ```
     """,
     responses={
-        200: {"description": "Discovery feed returned successfully"},
+        200: {
+            "description": "Discovery feed returned successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "profiles": [
+                            {
+                                "id": "profile-id",
+                                "full_name": "John Doe",
+                                "headline": "CEO",
+                                "compatibility_score": 85.5,
+                                "match_reasons": ["Strong alignment"],
+                                "unread_likes": 0
+                            }
+                        ],
+                        "cursor": "next-cursor",
+                        "has_more": True
+                    }
+                }
+            }
+        },
         400: {"description": "Invalid request parameters"},
     },
 )
@@ -57,10 +101,46 @@ def get_discovery_feed(
     Returns a list of profiles that have sent you a like, ordered by most recent.
     This is useful for prioritizing which profiles to review.
     
-    Results are cached for performance.
+    Results are cached for performance and ML-ranked by compatibility.
+    
+    **Example Request:**
+    ```
+    GET /api/v1/feed/likes-queue?profile_id=user-id
+    ```
+    
+    **Example Response:**
+    ```json
+    [
+        {
+            "profile": {
+                "id": "liker-id",
+                "full_name": "Jane Smith",
+                "headline": "Partner at VC Fund"
+            },
+            "note": "Love your vision!",
+            "liked_at": "2025-01-20T14:00:00Z"
+        }
+    ]
+    ```
     """,
     responses={
-        200: {"description": "Likes queue returned successfully"},
+        200: {
+            "description": "Likes queue returned successfully",
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "profile": {
+                                "id": "profile-id",
+                                "full_name": "John Doe"
+                            },
+                            "note": "Optional note",
+                            "liked_at": "2025-01-20T12:00:00Z"
+                        }
+                    ]
+                }
+            }
+        },
     },
 )
 def get_likes_queue(
@@ -83,11 +163,48 @@ def get_likes_queue(
     - High verification status
     - Complete profiles with detailed prompts
     - Positive signals from mutual connections
+    - High due diligence scores
     
-    Results are cached for performance.
+    Results are cached for performance and ML-ranked.
+    
+    **Example Request:**
+    ```
+    GET /api/v1/feed/standouts?profile_id=user-id&limit=10
+    ```
+    
+    **Example Response:**
+    ```json
+    [
+        {
+            "profile": {
+                "id": "standout-id",
+                "full_name": "Jane Doe",
+                "headline": "CEO at Amazing Startup"
+            },
+            "score": 92.5,
+            "reasons": ["Strong sector alignment", "High diligence score", "Verified profile"]
+        }
+    ]
+    ```
     """,
     responses={
-        200: {"description": "Standout profiles returned successfully"},
+        200: {
+            "description": "Standout profiles returned successfully",
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "profile": {
+                                "id": "profile-id",
+                                "full_name": "John Doe"
+                            },
+                            "score": 90.0,
+                            "reasons": ["Strong alignment", "Verified"]
+                        }
+                    ]
+                }
+            }
+        },
         400: {"description": "Invalid request parameters"},
     },
 )

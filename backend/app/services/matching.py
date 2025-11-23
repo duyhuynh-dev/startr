@@ -6,7 +6,7 @@ from redis.exceptions import RedisError
 from sqlalchemy import select
 from sqlmodel import Session
 
-from app.core.cache import cache_service
+from app.core.cache import LIKES_QUEUE_PREFIX, cache_service
 from app.core.redis import redis_client
 from app.models.match import Like, Match
 from app.models.profile import Profile
@@ -32,7 +32,7 @@ class MatchingService:
         session.refresh(like)
 
         try:
-            redis_client.lpush(f"{cache_service.LIKES_QUEUE_PREFIX}{payload.recipient_id}", like.id)
+            redis_client.lpush(f"{LIKES_QUEUE_PREFIX}{payload.recipient_id}", like.id)
         except RedisError:
             pass
 
@@ -53,7 +53,15 @@ class MatchingService:
             # Invalidate feed caches for both users after match
             cache_service.invalidate_feeds_for_profile(payload.sender_id)
             cache_service.invalidate_feeds_for_profile(payload.recipient_id)
-            return MatchRecord(**match.model_dump())
+            return MatchRecord(
+                id=match.id,
+                founder_id=match.founder_id,
+                investor_id=match.investor_id,
+                status=match.status,
+                created_at=match.created_at,
+                updated_at=match.updated_at,
+                last_message_preview=match.last_message_preview,
+            )
         return None
 
     def list_matches(self, session: Session, profile_id: str) -> List[MatchRecord]:
@@ -61,12 +69,24 @@ class MatchingService:
             select(Match).where(
                 (Match.founder_id == profile_id) | (Match.investor_id == profile_id)
             )
-        ).all()
-        return [MatchRecord(**match.model_dump()) for match in results]
+        ).scalars().all()  # Use scalars() to get Match instances, not Row objects
+        # Convert SQLModel Match to Pydantic MatchRecord
+        return [
+            MatchRecord(
+                id=match.id,
+                founder_id=match.founder_id,
+                investor_id=match.investor_id,
+                status=match.status,
+                created_at=match.created_at,
+                updated_at=match.updated_at,
+                last_message_preview=match.last_message_preview,
+            )
+            for match in results
+        ]
 
     def rank_profiles(self, session: Session, profile_id: str) -> list[str]:
         """Get ranked profile IDs from likes (for feed ranking)."""
-        key = f"{cache_service.LIKES_QUEUE_PREFIX}{profile_id}"
+        key = f"{LIKES_QUEUE_PREFIX}{profile_id}"
         try:
             like_ids = redis_client.lrange(key, 0, 50)
             if like_ids:

@@ -6,7 +6,7 @@ from typing import List, Optional
 from sqlalchemy import select
 from sqlmodel import Session
 
-from app.core.cache import CACHE_TTL_VERY_LONG, cache_service
+from app.core.cache import PROMPT_TEMPLATE_CACHE_PREFIX, CACHE_TTL_VERY_LONG, cache_service
 from app.models.prompt_template import PromptTemplate
 from app.schemas.prompt_template import PromptTemplateCreate, PromptTemplateUpdate
 
@@ -32,7 +32,7 @@ class PromptTemplateService:
         )
         
         # Invalidate list caches
-        cache_service.delete_pattern(f"{cache_service.PROMPT_TEMPLATE_CACHE_PREFIX}list:*")
+        cache_service.delete_pattern(f"{PROMPT_TEMPLATE_CACHE_PREFIX}list:*")
         
         return template
 
@@ -58,7 +58,7 @@ class PromptTemplateService:
     ) -> List[PromptTemplate]:
         """List templates with optional caching."""
         # Build cache key based on filters
-        cache_key = f"{cache_service.PROMPT_TEMPLATE_CACHE_PREFIX}list:{role or 'all'}:{is_active if is_active is not None else 'all'}"
+        cache_key = f"{PROMPT_TEMPLATE_CACHE_PREFIX}list:{role or 'all'}:{is_active if is_active is not None else 'all'}"
         
         cached = cache_service.get(cache_key)
         if cached:
@@ -73,7 +73,7 @@ class PromptTemplateService:
         
         query = query.order_by(PromptTemplate.display_order.asc(), PromptTemplate.created_at.asc())
         
-        templates = list(session.exec(query).all())
+        templates = session.exec(query).scalars().all()
         
         # Cache the result
         cache_service.set(
@@ -108,7 +108,7 @@ class PromptTemplateService:
         )
         
         # Invalidate list caches
-        cache_service.delete_pattern(f"{cache_service.PROMPT_TEMPLATE_CACHE_PREFIX}list:*")
+        cache_service.delete_pattern(f"{PROMPT_TEMPLATE_CACHE_PREFIX}list:*")
         
         return template
 
@@ -122,7 +122,7 @@ class PromptTemplateService:
         
         # Invalidate cache
         cache_service.delete(cache_service.get_prompt_template_key(template_id))
-        cache_service.delete_pattern(f"{cache_service.PROMPT_TEMPLATE_CACHE_PREFIX}list:*")
+        cache_service.delete_pattern(f"{PROMPT_TEMPLATE_CACHE_PREFIX}list:*")
         
         return True
 
