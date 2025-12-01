@@ -84,6 +84,7 @@ class Settings(BaseSettings):
     aws_secret_access_key: Optional[str] = None
     aws_s3_bucket: Optional[str] = None
     aws_region: str = "us-east-1"
+    aws_endpoint_url: Optional[str] = None  # Custom endpoint for S3-compatible services (e.g., DigitalOcean Spaces)
     # File Upload Limits
     max_file_size_mb: int = 10  # Maximum file size in MB
     allowed_image_types: List[str] = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"]

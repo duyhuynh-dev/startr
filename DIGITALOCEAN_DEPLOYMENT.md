@@ -1,0 +1,141 @@
+cat << 'EOF' > /Users/duyhuynh/Desktop/project/ambitious-project/AMAZON_LINUX_DEPLOYMENT.txt
+╔══════════════════════════════════════════════════════════════╗
+║     DEPLOYMENT GUIDE FOR AMAZON LINUX 2023 (al2023-ami)     ║
+╚══════════════════════════════════════════════════════════════╝
+
+YOUR INSTANCE DETAILS:
+======================
+AMI: Amazon Linux 2023 (al2023-ami)
+Username: ec2-user ✅
+Instance Type: t3.micro
+
+IMPORTANT DIFFERENCES FROM UBUNTU:
+==================================
+✅ Username: ec2-user (NOT ubuntu)
+✅ Package manager: dnf (NOT apt)
+✅ Some commands are slightly different
+
+
+STEP 1: CONNECT TO INSTANCE
+============================
+In AWS Console:
+- Tab: EC2 Instance Connect
+- Connection: Connect using a Public IP
+- Username: ec2-user ✅
+- Click "Connect"
+
+
+STEP 2: INSTALL DOCKER (Amazon Linux 2023)
+==========================================
+# Update system
+sudo dnf update -y
+
+# Install Docker
+sudo dnf install docker -y
+
+# Start Docker service
+sudo systemctl start docker
+sudo systemctl enable docker
+
+# Add ec2-user to docker group
+sudo usermod -aG docker ec2-user
+
+# Install Docker Compose
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+
+# Log out and back in for docker group to take effect
+exit
+# (SSH back in)
+
+# Verify Docker works (no sudo needed after logout/login)
+docker --version
+docker-compose --version
+
+
+STEP 3: INSTALL GIT
+====================
+sudo dnf install git -y
+
+
+STEP 4: CLONE YOUR REPO
+========================
+cd ~
+git clone YOUR_GITHUB_REPO_URL
+cd ambitious-project/backend
+cp .env.example .env
+nano .env  # Fill in your passwords
+
+
+STEP 5: GENERATE PASSWORDS
+===========================
+cd ~/ambitious-project/backend
+chmod +x generate-passwords.sh
+./generate-passwords.sh
+
+# Copy the output into your .env file
+nano .env
+
+
+STEP 6: CONFIGURE ENVIRONMENT
+==============================
+In backend/.env, set at minimum:
+
+POSTGRES_PASSWORD=your-password
+REDIS_PASSWORD=your-password
+SECRET_KEY=your-secret-key
+MINIO_ROOT_PASSWORD=your-password
+
+# CORS - Will set to Vercel URL after deployment
+# CORS_ORIGINS=["http://YOUR_EC2_IP:3000"]
+
+
+STEP 7: DEPLOY BACKEND
+======================
+cd ~/ambitious-project
+chmod +x deploy-ec2.sh
+./deploy-ec2.sh
+
+
+VERIFY EVERYTHING WORKS:
+========================
+# Check services are running
+docker-compose -f docker-compose.prod.yml ps
+
+# Test health endpoint (from your computer)
+curl http://YOUR_EC2_IP:8000/healthz
+
+# Should return: {"status": "ok"}
+
+
+TROUBLESHOOTING:
+================
+Docker permission denied?
+- Make sure you logged out and back in after adding user to docker group
+- Or use: sudo docker ... (temporary)
+
+dnf command not found?
+- Amazon Linux 2023 uses dnf (not apt)
+- If dnf doesn't work, try: sudo yum install docker -y
+
+Can't connect to backend?
+- Check Security Group allows port 8000
+- Check service status: docker-compose -f docker-compose.prod.yml ps
+
+
+KEY DIFFERENCES FROM UBUNTU:
+============================
+Command              Ubuntu              Amazon Linux 2023
+--------             ------              -----------------
+Package manager      apt                 dnf (or yum)
+Install Docker       get.docker.com      dnf install docker
+Username            ubuntu               ec2-user
+Update system       apt update           dnf update
+
+But Docker Compose and everything else works the same! 🎉
+
+
+That's it! Your deployment commands are the same, just different package manager!
+
+EOF
+cat /Users/duyhuynh/Desktop/project/ambitious-project/AMAZON_LINUX_DEPLOYMENT.txt

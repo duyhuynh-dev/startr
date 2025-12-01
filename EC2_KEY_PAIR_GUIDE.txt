@@ -1,0 +1,97 @@
+╔══════════════════════════════════════════════════════════════╗
+║           AWS EC2 KEY PAIR - Quick Reference Guide          ║
+╚══════════════════════════════════════════════════════════════╝
+
+WHAT IS A KEY PAIR?
+===================
+A key pair is like a password, but more secure. It has two parts:
+- Public key: Stored on AWS (allows you to connect)
+- Private key: You download (.pem file) - KEEP IT SECRET!
+
+It's used to securely SSH into your EC2 instance without a password.
+
+
+WHAT TO ENTER IN THE MODAL:
+===========================
+
+1. KEY PAIR NAME:
+   ──────────────
+   Enter: vc-matcher-backend
+   (or any name you want - this is just a label)
+
+2. KEY PAIR TYPE:
+   ───────────────
+   ✅ Keep "RSA" selected (default - works great)
+
+3. PRIVATE KEY FILE FORMAT:
+   ────────────────────────
+   ✅ Keep ".pem" selected (for Mac/Linux/OpenSSH)
+   (Only choose .ppk if you're on Windows using PuTTY)
+
+4. CLICK "Create key pair"
+   ────────────────────────
+   - A file will download automatically!
+   - File name: vc-matcher-backend.pem (or whatever you named it)
+
+
+AFTER CREATING - IMPORTANT STEPS:
+==================================
+
+Step 1: Save the downloaded .pem file
+--------------------------------------
+- It downloads to your Downloads folder
+- Move it to ~/.ssh/ folder (recommended):
+
+  mv ~/Downloads/vc-matcher-backend.pem ~/.ssh/
+
+Step 2: Set secure permissions
+-------------------------------
+The key file MUST have restrictive permissions:
+
+  chmod 400 ~/.ssh/vc-matcher-backend.pem
+
+This makes it readable only by you (required by SSH).
+
+Step 3: Use it to connect
+--------------------------
+After your EC2 instance is running:
+
+  ssh -i ~/.ssh/vc-matcher-backend.pem ubuntu@YOUR_EC2_IP
+
+Replace YOUR_EC2_IP with your actual EC2 public IP address.
+
+
+TROUBLESHOOTING:
+================
+
+"Permission denied (publickey)" error?
+- Make sure permissions are 400: chmod 400 ~/.ssh/your-key.pem
+- Verify you're using the correct key name
+- Check the key pair is selected in EC2 instance settings
+
+"WARNING: UNPROTECTED PRIVATE KEY FILE!"
+- Run: chmod 400 ~/.ssh/your-key.pem
+
+Can't find the downloaded file?
+- Check your Downloads folder
+- Check browser download history
+- If lost, create a new key pair (but won't work with existing instance)
+
+
+QUICK COMMANDS:
+===============
+
+# Move key to .ssh folder
+mv ~/Downloads/vc-matcher-backend.pem ~/.ssh/
+
+# Set permissions
+chmod 400 ~/.ssh/vc-matcher-backend.pem
+
+# Test connection (after instance is running)
+ssh -i ~/.ssh/vc-matcher-backend.pem ubuntu@YOUR_EC2_IP
+
+# If you get "Are you sure you want to continue?" type: yes
+
+
+That's it! The key pair is your secure way to access your EC2 instance. 🔐
+

@@ -73,7 +73,15 @@
 
 ## Deployment Instructions
 
-This guide covers deploying the VC × Startup Matching Platform using Docker.
+### Cloud Deployment (Recommended)
+
+**DigitalOcean**: See [`DIGITALOCEAN_DEPLOYMENT.md`](./DIGITALOCEAN_DEPLOYMENT.md) for a complete guide to deploying on DigitalOcean App Platform with managed databases, Redis, and Spaces.
+
+**Other Options**: The platform can also be deployed to AWS, Google Cloud, Azure, or any Docker-compatible hosting service.
+
+### Local/Docker Deployment
+
+This guide covers deploying the VC × Startup Matching Platform using Docker for local development or self-hosted production.
 
 ### Prerequisites
 

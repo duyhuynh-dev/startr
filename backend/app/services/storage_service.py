@@ -85,18 +85,23 @@ class StorageService:
             )
             
         elif self.storage_type == "s3":
-            # AWS S3 configuration
+            # AWS S3 configuration (or S3-compatible like DigitalOcean Spaces)
             if not all([settings.aws_access_key_id, settings.aws_secret_access_key, settings.aws_s3_bucket]):
                 raise StorageServiceError("AWS S3 credentials not configured")
             
             self.bucket_name = settings.aws_s3_bucket
             
-            self.client = boto3.client(
-                's3',
-                aws_access_key_id=settings.aws_access_key_id,
-                aws_secret_access_key=settings.aws_secret_access_key,
-                region_name=settings.aws_region,
-            )
+            # Support custom endpoints for S3-compatible services (e.g., DigitalOcean Spaces)
+            client_config = {
+                'aws_access_key_id': settings.aws_access_key_id,
+                'aws_secret_access_key': settings.aws_secret_access_key,
+                'region_name': settings.aws_region,
+            }
+            
+            if settings.aws_endpoint_url:
+                client_config['endpoint_url'] = settings.aws_endpoint_url
+            
+            self.client = boto3.client('s3', **client_config)
         else:
             raise StorageServiceError(f"Unsupported storage type: {self.storage_type}")
         
@@ -116,11 +121,12 @@ class StorageService:
                     # MinIO - create bucket
                     self.client.create_bucket(Bucket=self.bucket_name)
                 else:
-                    # AWS S3 - create bucket with region
-                    self.client.create_bucket(
-                        Bucket=self.bucket_name,
-                        CreateBucketConfiguration={'LocationConstraint': settings.aws_region}
-                    )
+                    # AWS S3 or S3-compatible - create bucket
+                    create_params = {'Bucket': self.bucket_name}
+                    # Only add LocationConstraint for AWS S3 (not for S3-compatible services)
+                    if not settings.aws_endpoint_url and settings.aws_region != "us-east-1":
+                        create_params['CreateBucketConfiguration'] = {'LocationConstraint': settings.aws_region}
+                    self.client.create_bucket(**create_params)
                 logger.info(f"Created bucket: {self.bucket_name}")
             except Exception as e:
                 logger.error(f"Failed to create bucket {self.bucket_name}: {e}")

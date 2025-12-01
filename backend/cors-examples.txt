@@ -1,0 +1,35 @@
+# CORS_ORIGINS & FRONTEND_URL Examples
+# Choose based on your deployment scenario
+
+# ============================================
+# LOCAL DEVELOPMENT (Default - No setup needed)
+# ============================================
+# Just leave them unset or use defaults:
+# CORS_ORIGINS=["http://localhost:3000", "http://127.0.0.1:3000"]
+# FRONTEND_URL=http://localhost:3000
+
+# ============================================
+# DROPLET DEPLOYMENT (No domain - Use IP)
+# ============================================
+# Replace YOUR_DROPLET_IP with actual IP like "123.456.789.0"
+CORS_ORIGINS=["http://YOUR_DROPLET_IP"]
+FRONTEND_URL=http://YOUR_DROPLET_IP
+
+# ============================================
+# FRONTEND ON VERCEL + BACKEND ON DROPLET
+# ============================================
+# Replace with your actual Vercel URL
+CORS_ORIGINS=["https://your-app.vercel.app"]
+FRONTEND_URL=https://your-app.vercel.app
+
+# ============================================
+# WITH CUSTOM DOMAIN (When you get one)
+# ============================================
+CORS_ORIGINS=["https://yourdomain.com", "https://www.yourdomain.com"]
+FRONTEND_URL=https://yourdomain.com
+
+# ============================================
+# MULTIPLE FRONTENDS (Development + Production)
+# ============================================
+CORS_ORIGINS=["http://localhost:3000", "https://yourdomain.com", "https://your-app.vercel.app"]
+FRONTEND_URL=https://yourdomain.com
