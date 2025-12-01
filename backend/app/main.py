@@ -109,14 +109,10 @@ def create_application() -> FastAPI:
     # Last added = Outermost (executes FIRST, wraps everything)
     # First added = Innermost (executes LAST)
     # This ensures CORS headers are always present, even in error responses
-    cors_origins = [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ]
     
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=cors_origins,
+        allow_origins=settings.cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

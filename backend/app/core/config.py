@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     smtp_use_tls: bool = True
     frontend_url: str = "http://localhost:3000"  # Frontend URL for email links
     
+    # CORS Configuration
+    cors_origins: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]  # Allowed CORS origins
+    
     # Token expiration
     password_reset_token_expire_hours: int = 24  # Password reset tokens valid for 24 hours
     email_verification_token_expire_hours: int = 48  # Email verification tokens valid for 48 hours

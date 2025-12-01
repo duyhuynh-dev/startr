@@ -4,10 +4,12 @@
 
 import type { WebSocketMessage } from '@/hooks/useWebSocket';
 
-const WS_BASE_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/api/v1/realtime/ws';
+import { DEFAULT_WS_BASE_URL, STORAGE_KEYS, WS_PING_INTERVAL_MS, WS_MAX_RECONNECT_DELAY_MS } from '../constants';
+
+const WS_BASE_URL = process.env.NEXT_PUBLIC_WS_URL || DEFAULT_WS_BASE_URL;
 
 export function getWebSocketUrl(profileId: string): string {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  const token = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN) : null;
   const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
   return `${WS_BASE_URL}/${profileId}${tokenParam}`;
 }
@@ -146,7 +148,7 @@ export class MessagingWebSocketClient {
       if (this.ws?.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify({ type: 'ping' }));
       }
-    }, 30000); // Send ping every 30 seconds
+    }, WS_PING_INTERVAL_MS); // Send ping every 30 seconds
   }
 
   private stopHeartbeat() {
@@ -163,7 +165,7 @@ export class MessagingWebSocketClient {
     }
 
     this.reconnectAttempts++;
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000); // Exponential backoff, max 30s
+    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), WS_MAX_RECONNECT_DELAY_MS); // Exponential backoff, max 30s
 
     this.reconnectTimeout = setTimeout(() => {
       this.connect().catch((error) => {

@@ -4,6 +4,8 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 
+import { WS_RECONNECT_INTERVAL_MS } from '@/lib/constants';
+
 export interface WebSocketMessage {
   type: string;
   [key: string]: any;
@@ -27,7 +29,7 @@ export function useWebSocket({
   onClose,
   onError,
   reconnect = true,
-  reconnectInterval = 3000,
+  reconnectInterval = WS_RECONNECT_INTERVAL_MS,
   enabled = true,
 }: UseWebSocketOptions) {
   const [isConnected, setIsConnected] = useState(false);

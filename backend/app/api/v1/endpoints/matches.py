@@ -112,20 +112,12 @@ def send_like(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="sender_id and recipient_id are required",
-            headers={
-                "Access-Control-Allow-Origin": "http://localhost:3000",
-                "Access-Control-Allow-Credentials": "true",
-            }
         )
     
     if payload.sender_id == payload.recipient_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot like yourself",
-            headers={
-                "Access-Control-Allow-Origin": "http://localhost:3000",
-                "Access-Control-Allow-Credentials": "true",
-            }
         )
     
     try:
@@ -161,10 +153,6 @@ def send_like(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
-            headers={
-                "Access-Control-Allow-Origin": "http://localhost:3000",
-                "Access-Control-Allow-Credentials": "true",
-            }
         )
     except Exception as e:
         error_type = type(e).__name__

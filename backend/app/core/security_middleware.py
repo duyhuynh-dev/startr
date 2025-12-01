@@ -10,6 +10,8 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
+from app.core.config import settings
+
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Add security headers to all responses."""
@@ -25,14 +27,23 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
         
         # Content Security Policy (adjust based on your needs)
-        # Allow connections to localhost:3000 for frontend development
+        # Build CSP with configurable origins
+        connect_sources = " ".join([
+            f"http://{origin.replace('http://', '')}" if origin.startswith('http://') else origin
+            for origin in settings.cors_origins
+        ])
+        ws_sources = " ".join([
+            f"ws://{origin.replace('http://', '').split(':')[0]}:8000"
+            for origin in settings.cors_origins if origin.startswith('http://localhost') or origin.startswith('http://127.0.0.1')
+        ])
+        
         csp = (
             "default-src 'self'; "
             "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "  # Allow inline scripts for Swagger UI
             "style-src 'self' 'unsafe-inline'; "  # Allow inline styles for Swagger UI
             "img-src 'self' data: https:; "
             "font-src 'self' data:; "
-            "connect-src 'self' http://localhost:3000 http://127.0.0.1:3000 ws://localhost:8000 ws://127.0.0.1:8000; "
+            f"connect-src 'self' {connect_sources} {ws_sources}; "
         )
         response.headers["Content-Security-Policy"] = csp
         

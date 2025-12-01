@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
+from app.core.cors import get_cors_headers
 from app.core.exceptions import AppException
 from app.schemas.errors import ErrorDetail, ErrorResponse, ValidationErrorResponse
 
@@ -17,11 +18,7 @@ from app.schemas.errors import ErrorDetail, ErrorResponse, ValidationErrorRespon
 async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
     """Handle custom application exceptions."""
     # CORS headers will be added by middleware, but explicitly set origin to ensure they're present
-    headers = {}
-    origin = request.headers.get("origin")
-    if origin and origin in ["http://localhost:3000", "http://127.0.0.1:3000"]:
-        headers["Access-Control-Allow-Origin"] = origin
-        headers["Access-Control-Allow-Credentials"] = "true"
+    headers = get_cors_headers(request)
     
     return JSONResponse(
         status_code=exc.status_code,
@@ -72,11 +69,7 @@ async def validation_exception_handler(
 async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
     """Handle ValueError exceptions (often from service layer)."""
     # CORS headers will be added by middleware, but explicitly set origin to ensure they're present
-    headers = {}
-    origin = request.headers.get("origin")
-    if origin and origin in ["http://localhost:3000", "http://127.0.0.1:3000"]:
-        headers["Access-Control-Allow-Origin"] = origin
-        headers["Access-Control-Allow-Credentials"] = "true"
+    headers = get_cors_headers(request)
     
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
@@ -171,11 +164,7 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
     print(f"{'='*60}\n", file=sys.stderr, flush=True)
     
     # CORS headers will be added by middleware, but explicitly set origin to ensure they're present
-    headers = {}
-    origin = request.headers.get("origin")
-    if origin and origin in ["http://localhost:3000", "http://127.0.0.1:3000"]:
-        headers["Access-Control-Allow-Origin"] = origin
-        headers["Access-Control-Allow-Credentials"] = "true"
+    headers = get_cors_headers(request)
     
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

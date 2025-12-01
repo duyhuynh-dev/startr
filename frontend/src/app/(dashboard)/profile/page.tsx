@@ -18,6 +18,7 @@ import {
   Textarea,
   LocationAutocomplete,
 } from "@/components/ui";
+import { MarketAutocomplete } from "@/components/ui/MarketAutocomplete";
 import { profilesApi, type ProfileUpdate } from "@/lib/api/profiles";
 import type { BaseProfile } from "@/lib/api/types";
 
@@ -51,6 +52,7 @@ export default function ProfilePage() {
           revenue_run_rate: data.revenue_run_rate,
           team_size: data.team_size,
           runway_months: data.runway_months,
+          focus_markets: data.focus_markets || [],
           focus_sectors: data.focus_sectors || [],
           focus_stages: data.focus_stages || [],
           check_size_min: data.check_size_min,
@@ -102,6 +104,7 @@ export default function ProfilePage() {
         revenue_run_rate: profile.revenue_run_rate,
         team_size: profile.team_size,
         runway_months: profile.runway_months,
+        focus_markets: profile.focus_markets || [],
         focus_sectors: profile.focus_sectors || [],
         focus_stages: profile.focus_stages || [],
         check_size_min: profile.check_size_min,
@@ -461,6 +464,40 @@ export default function ProfilePage() {
                             ? `${profile.runway_months} months`
                             : "Not set"}
                         </p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-100 mb-1">
+                        Focus Markets
+                      </label>
+                      {isEditing ? (
+                        <MarketAutocomplete
+                          value={formData.focus_markets || []}
+                          onChange={(markets) =>
+                            setFormData({ ...formData, focus_markets: markets })
+                          }
+                          placeholder="Search and select markets..."
+                          helperText="Select from supported markets for matching"
+                        />
+                      ) : (
+                        <div>
+                          {profile.focus_markets &&
+                          profile.focus_markets.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                              {profile.focus_markets.map((market) => (
+                                <span
+                                  key={market}
+                                  className="inline-flex items-center px-3 py-1 bg-amber-500/20 text-amber-100 rounded-full text-sm border border-amber-500/30"
+                                >
+                                  {market}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-slate-100">Not set</p>
+                          )}
+                        </div>
                       )}
                     </div>
                   </>

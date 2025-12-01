@@ -5,6 +5,7 @@
 'use client';
 
 import { Input } from '@/components/ui';
+import { MarketAutocomplete } from '@/components/ui/MarketAutocomplete';
 
 interface Step2FounderData {
   companyName?: string;
@@ -67,15 +68,12 @@ export function OnboardingStep2Founder({ data, onChange }: Step2FounderProps) {
         helperText="How many months of cash runway do you have?"
       />
 
-      <Input
-        label="Focus Markets (comma-separated)"
-        value={data.focusMarkets?.join(', ') || ''}
-        onChange={(e) => {
-          const markets = e.target.value.split(',').map((m) => m.trim()).filter(Boolean);
-          onChange({ focusMarkets: markets });
-        }}
-        placeholder="B2B SaaS, Enterprise, Healthcare"
-        helperText="Enter target markets separated by commas"
+      <MarketAutocomplete
+        label="Focus Markets"
+        value={data.focusMarkets || []}
+        onChange={(markets) => onChange({ focusMarkets: markets })}
+        placeholder="Start typing a market (e.g., B2B SaaS, Healthcare)..."
+        helperText="Select or type target markets. Press Enter or click to add."
       />
     </div>
   );

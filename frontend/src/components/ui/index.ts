@@ -10,5 +10,6 @@ export { Checkbox, type CheckboxProps } from './Checkbox';
 export { Card, CardHeader, CardTitle, CardContent, type CardProps } from './Card';
 export { LoadingSpinner, type LoadingSpinnerProps } from './LoadingSpinner';
 export { LocationAutocomplete, type LocationAutocompleteProps } from './LocationAutocomplete';
+export { MarketAutocomplete, type MarketAutocompleteProps } from './MarketAutocomplete';
 export { Skeleton, SkeletonProfileCard, type SkeletonProps } from './Skeleton';
 
