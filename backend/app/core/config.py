@@ -1,6 +1,8 @@
 from functools import lru_cache
-from typing import List, Optional
+import json
+from typing import List, Optional, Union
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -66,6 +68,22 @@ class Settings(BaseSettings):
     
     # CORS Configuration
     cors_origins: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]  # Allowed CORS origins
+    
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
+        """Parse CORS origins from JSON string or comma-separated string."""
+        if isinstance(v, str):
+            # Try parsing as JSON first
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, list):
+                    return parsed
+            except (json.JSONDecodeError, TypeError):
+                pass
+            # Fall back to comma-separated
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
+        return v
     
     # Token expiration
     password_reset_token_expire_hours: int = 24  # Password reset tokens valid for 24 hours
