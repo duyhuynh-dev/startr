@@ -73,8 +73,8 @@ export default function MessagesPage() {
           {conversations.length === 0 ? (
             <Card>
               <CardContent className="text-center py-12">
-                <p className="text-slate-300 text-lg">No conversations yet</p>
-                <p className="text-slate-400 mt-2">Start matching to begin conversations!</p>
+                <p className="text-slate-100 text-lg">No conversations yet</p>
+                <p className="text-slate-100 mt-2">Start matching to begin conversations!</p>
               </CardContent>
             </Card>
           ) : (
@@ -104,12 +104,12 @@ export default function MessagesPage() {
                           {conv.other_party_name}
                         </h3>
                         {conv.last_message_preview && (
-                          <p className="text-slate-300 mt-1 truncate">
+                          <p className="text-slate-100 mt-1 truncate">
                             {conv.last_message_preview}
                           </p>
                         )}
                         {conv.last_message_at && (
-                          <p className="text-xs text-slate-400 mt-1">
+                          <p className="text-xs text-slate-100 mt-1">
                             {new Date(conv.last_message_at).toLocaleString([], {
                               month: 'short',
                               day: 'numeric',

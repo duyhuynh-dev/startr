@@ -56,7 +56,7 @@ export function Navbar() {
                   className={`relative px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                     isActive(link.href)
                       ? 'text-amber-500'
-                      : 'text-slate-300 hover:text-amber-400 hover:bg-slate-800'
+                      : 'text-slate-100 hover:text-amber-400 hover:bg-slate-800'
                   }`}
                 >
                   {link.label}
@@ -80,7 +80,7 @@ export function Navbar() {
             transition={{ delay: 0.3, duration: 0.3 }}
           >
             {user && (
-              <span className="text-sm text-slate-300 hidden sm:inline">
+              <span className="text-sm text-slate-100 hidden sm:inline">
                 {user.email}
               </span>
             )}
@@ -111,7 +111,7 @@ export function Navbar() {
                 className={`block px-3 py-2 rounded-md text-base font-medium ${
                   isActive(link.href)
                     ? 'bg-amber-500/20 text-amber-500'
-                    : 'text-slate-300 hover:text-amber-400 hover:bg-slate-800'
+                    : 'text-slate-100 hover:text-amber-400 hover:bg-slate-800'
                 }`}
               >
                 {link.label}

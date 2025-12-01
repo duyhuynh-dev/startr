@@ -21,7 +21,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
             {...props}
           />
           {label && (
-            <span className={`ml-2 text-sm ${error ? 'text-red-600' : 'text-gray-700'}`}>
+            <span className={`ml-2 text-sm ${error ? 'text-red-600' : 'text-slate-100'}`}>
               {label}
             </span>
           )}

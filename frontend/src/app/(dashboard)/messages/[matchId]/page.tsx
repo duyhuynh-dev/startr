@@ -193,7 +193,7 @@ export default function ConversationPage() {
             ← Back
           </Button>
           {isConnected && (
-            <div className="flex items-center gap-2 text-xs text-slate-300">
+            <div className="flex items-center gap-2 text-xs text-slate-100">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
               <span>Connected</span>
             </div>
@@ -220,7 +220,7 @@ export default function ConversationPage() {
                     <p className={isOwn ? 'text-slate-900' : 'text-slate-100'}>{message.content}</p>
                     <p
                       className={`text-xs mt-1 ${
-                        isOwn ? 'text-slate-700' : 'text-slate-400'
+                        isOwn ? 'text-slate-700' : 'text-slate-100'
                       }`}
                     >
                       {(() => {
@@ -247,7 +247,7 @@ export default function ConversationPage() {
             {isTyping && (
               <div className="flex justify-start">
                 <div className="max-w-xs lg:max-w-md px-4 py-2 rounded-lg bg-slate-800 border border-slate-700">
-                  <p className="text-slate-400 text-sm italic">Typing...</p>
+                  <p className="text-slate-100 text-sm italic">Typing...</p>
                 </div>
               </div>
             )}

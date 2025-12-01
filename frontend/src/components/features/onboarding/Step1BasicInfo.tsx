@@ -20,7 +20,7 @@ interface Step1Props {
 export function OnboardingStep1({ data, onChange }: Step1Props) {
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-semibold mb-4">Basic Information</h2>
+      <h2 className="text-xl font-semibold text-slate-100 mb-4">Basic Information</h2>
 
       <Input
         label="Full Name"

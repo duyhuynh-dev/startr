@@ -176,7 +176,7 @@ export function LocationAutocomplete({
 
       {isLoading && (
         <div className="absolute z-10 w-full mt-1 bg-slate-800 border border-slate-600 rounded-lg shadow-lg p-2">
-          <p className="text-sm text-slate-400 text-center">Searching...</p>
+          <p className="text-sm text-slate-100 text-center">Searching...</p>
         </div>
       )}
 

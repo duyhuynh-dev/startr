@@ -74,13 +74,13 @@ export function OnboardingStep3({ role, data, onChange }: Step3Props) {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold mb-4">Answer a Few Questions</h2>
-      <p className="text-gray-600 mb-6">
+      <h2 className="text-xl font-semibold text-slate-100 mb-4">Answer a Few Questions</h2>
+      <p className="text-slate-100 mb-6">
         Help others get to know you better by answering these prompts.
       </p>
 
       {templates.length === 0 ? (
-        <p className="text-gray-500">No prompts available. You can skip this step.</p>
+        <p className="text-slate-100">No prompts available. You can skip this step.</p>
       ) : (
         templates.map((template) => (
           <div key={template.id}>

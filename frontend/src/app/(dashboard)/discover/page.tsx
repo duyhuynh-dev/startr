@@ -286,13 +286,13 @@ export default function DiscoverPage() {
           transition={{ delay: 0.1, duration: 0.3 }}
         >
           <h2 className="text-lg font-semibold text-slate-100 mb-2">Filters</h2>
-          <p className="text-xs text-slate-300 mb-4">
+          <p className="text-xs text-slate-100 mb-4">
             Refine your feed by stage, sector, geography, and check size.
           </p>
 
           {/* Stages */}
           <div className="mb-4">
-            <h3 className="text-xs font-semibold text-slate-200 uppercase tracking-wide mb-2">
+            <h3 className="text-xs font-semibold text-slate-100 uppercase tracking-wide mb-2">
               Stages
             </h3>
             <div className="space-y-1">
@@ -309,7 +309,7 @@ export default function DiscoverPage() {
 
           {/* Sectors */}
           <div className="mb-4">
-            <h3 className="text-xs font-semibold text-slate-200 uppercase tracking-wide mb-2">
+            <h3 className="text-xs font-semibold text-slate-100 uppercase tracking-wide mb-2">
               Sectors
             </h3>
             <div className="space-y-1">
@@ -336,7 +336,7 @@ export default function DiscoverPage() {
 
           {/* Check size */}
           <div className="mb-4">
-            <h3 className="text-xs font-semibold text-slate-200 uppercase tracking-wide mb-2">
+            <h3 className="text-xs font-semibold text-slate-100 uppercase tracking-wide mb-2">
               Check size (USD)
             </h3>
             <div className="flex gap-2">
@@ -389,7 +389,7 @@ export default function DiscoverPage() {
           <div className="text-center max-w-md mx-auto px-4">
             <p className="text-red-600 mb-4">{error}</p>
             {!user?.profile_id && (
-              <p className="text-gray-600 mb-4">
+              <p className="text-slate-100 mb-4">
                 You need to complete your profile first. <a href="/onboarding" className="text-blue-600 underline">Go to onboarding</a>
               </p>
             )}
@@ -421,7 +421,7 @@ export default function DiscoverPage() {
               All Caught Up! 🎉
             </motion.h2>
             <motion.p
-              className="text-slate-300 text-lg mb-2"
+              className="text-slate-100 text-lg mb-2"
               initial={{ y: 5, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.05, duration: 0.15 }}
@@ -429,7 +429,7 @@ export default function DiscoverPage() {
               You've seen all available profiles
             </motion.p>
             <motion.p
-              className="text-slate-400 text-sm mb-6"
+              className="text-slate-100 text-sm mb-6"
               initial={{ y: 5, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.1, duration: 0.15 }}
@@ -460,7 +460,7 @@ export default function DiscoverPage() {
           <div className="flex-1">
             <div className="mb-4 text-center">
               <h1 className="text-2xl font-bold text-slate-100">Discover</h1>
-              <div className="flex items-center justify-center gap-4 text-sm text-slate-300">
+              <div className="flex items-center justify-center gap-4 text-sm text-slate-100">
                 <span>{profiles.length - currentIndex} profiles remaining</span>
                 {dailyLimits && (
                   <>

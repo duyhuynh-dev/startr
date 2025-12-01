@@ -62,7 +62,7 @@ export function OnboardingStep2Investor({ data, onChange }: Step2InvestorProps) 
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-semibold mb-4">Investor Information</h2>
+      <h2 className="text-xl font-semibold text-slate-100 mb-4">Investor Information</h2>
 
       <Input
         label="Firm Name"
@@ -90,7 +90,7 @@ export function OnboardingStep2Investor({ data, onChange }: Step2InvestorProps) 
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-slate-100 mb-2">
           Focus Sectors
         </label>
         <div className="grid grid-cols-2 gap-2">
@@ -106,7 +106,7 @@ export function OnboardingStep2Investor({ data, onChange }: Step2InvestorProps) 
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-slate-100 mb-2">
           Focus Stages
         </label>
         <div className="grid grid-cols-2 gap-2">
