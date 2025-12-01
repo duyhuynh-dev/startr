@@ -4,7 +4,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
@@ -42,7 +42,7 @@ type OnboardingData = {
   prompts?: Array<{ content: string; template_id: string }>;
 };
 
-export default function OnboardingPage() {
+function OnboardingContent() {
   const { user, refreshUser } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -273,6 +273,18 @@ export default function OnboardingPage() {
         </div>
       </div>
     </ProtectedRoute>
+  );
+}
+
+export default function OnboardingPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    }>
+      <OnboardingContent />
+    </Suspense>
   );
 }
 
