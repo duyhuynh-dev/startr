@@ -19,16 +19,11 @@ COPY app ./app
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Build argument to enable ML (default: false for faster builds)
-ARG ENABLE_ML=false
-
-# Install backend dependencies (skip ML by default for faster builds)
+# Install backend dependencies with ML support
 RUN pip install --upgrade pip && \
-    if [ "$ENABLE_ML" = "true" ]; then \
-        pip install --no-cache-dir -e ".[dev,ml]"; \
-    else \
-        pip install --no-cache-dir -e ".[dev]" || pip install --no-cache-dir -e .; \
-    fi
+    pip install --no-cache-dir -e ".[dev,ml]" || \
+    pip install --no-cache-dir -e ".[ml]" || \
+    pip install --no-cache-dir -e .
 
 # Stage 2: Runtime image
 FROM python:3.12-slim
