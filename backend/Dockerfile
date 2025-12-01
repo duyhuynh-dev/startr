@@ -19,9 +19,10 @@ COPY app ./app
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Install backend dependencies (without dev dependencies for smaller image)
+# Install backend dependencies with ML support
 RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -e ".[dev]" || \
+    pip install --no-cache-dir -e ".[dev,ml]" || \
+    pip install --no-cache-dir -e ".[ml]" || \
     pip install --no-cache-dir -e .
 
 # Stage 2: Runtime image

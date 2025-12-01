@@ -15,19 +15,23 @@ os.environ['PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION'] = 'python'
 warnings.filterwarnings('ignore', message='.*MessageFactory.*')
 warnings.filterwarnings('ignore', category=UserWarning, module='.*protobuf.*')
 
+# Import settings early to check ml_enabled
+from app.core.config import settings
+
 try:
     from sentence_transformers import SentenceTransformer
     import torch
     SENTENCE_TRANSFORMERS_AVAILABLE = True
 except (ImportError, ValueError, Exception) as e:
     # Catch all exceptions including Keras version conflicts and protobuf errors
-    logger.warning(f"ML dependencies not available: {type(e).__name__}: {e}")
+    # Only log warning if ML is enabled (to reduce noise when ML is intentionally disabled)
+    if settings.ml_enabled:
+        logger.warning(f"ML dependencies not available: {type(e).__name__}: {e}")
     SENTENCE_TRANSFORMERS_AVAILABLE = False
     SentenceTransformer = None
     torch = None
 
 from app.core.cache import CACHE_TTL_LONG, cache_service
-from app.core.config import settings
 
 
 class EmbeddingService:
@@ -46,10 +50,12 @@ class EmbeddingService:
         self.device = "cpu"
         
         if not SENTENCE_TRANSFORMERS_AVAILABLE:
-            logger.warning(
-                "sentence-transformers or torch not installed. "
-                "Install with: pip install -e '.[ml]'"
-            )
+            # Only warn if ML is enabled (to reduce noise when ML is intentionally disabled)
+            if settings.ml_enabled:
+                logger.warning(
+                    "sentence-transformers or torch not installed. "
+                    "Install with: pip install -e '.[ml]'"
+                )
             return
         
         try:
