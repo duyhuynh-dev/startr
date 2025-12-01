@@ -20,7 +20,7 @@ router = APIRouter()
     Includes:
     - Aggregated metrics (revenue, team size, runway, etc.)
     - Risk flags (based on rule-based checks)
-    - ETL data from external sources (Crunchbase, Clearbit, Plaid stubs)
+    - ETL data from external sources (Crunchbase, Clearbit)
     - LLM-generated summary (when available)
     - Overall diligence score (0-100)
     
@@ -50,8 +50,7 @@ router = APIRouter()
         ],
         "etl_data": {
             "crunchbase": {"status": "not_connected"},
-            "clearbit": {"status": "not_connected"},
-            "plaid": {"status": "not_connected"}
+            "clearbit": {"status": "not_connected"}
         },
         "summary": "Company shows strong growth metrics with healthy runway.",
         "last_updated": "2025-01-20T12:00:00Z"

@@ -9,7 +9,7 @@ from sqlmodel import Session
 from app.core.cache import CACHE_TTL_LONG, cache_service
 from app.models.profile import Profile
 from app.schemas.diligence import DiligenceSummary, Metric, RiskFlag
-from app.services.etl.data_sources import ClearbitSource, CrunchbaseSource, PlaidSource
+from app.services.etl.data_sources import ClearbitSource, CrunchbaseSource
 
 # TODO: Import LangChain once we set up LLM integration
 # from langchain.llms import OpenAI
@@ -25,8 +25,9 @@ class DiligenceService:
 
     def __init__(self):
         self.crunchbase = CrunchbaseSource()
-        self.clearbit = ClearbitSource()
-        self.plaid = PlaidSource()
+        # Clearbit no longer available - using stub data for free personal projects
+        # Can be replaced with OpenCorporatesSource or user-provided data
+        self.clearbit = ClearbitSource()  # Returns stub data when API key not set
 
     def generate_summary(
         self, session: Session, profile_id: str, force_refresh: bool = False
@@ -92,9 +93,6 @@ class DiligenceService:
             },
             "crunchbase": self.crunchbase.fetch_company_data(company_name, domain),
             "clearbit": self.clearbit.fetch_company_data(company_name, domain),
-            "plaid": self.plaid.fetch_financial_data(company_name, domain)
-            if profile.extra_metadata and profile.extra_metadata.get("plaid_connected")
-            else {"status": "not_connected"},
         }
 
         return data
@@ -143,7 +141,7 @@ class DiligenceService:
                     name="Annual Revenue (ARR)",
                     value=f"${annual_revenue:,.0f}",
                     trend="up",
-                    confidence=0.6 if not external_data["plaid"].get("revenue_verified") else 0.9,
+                    confidence=0.6,  # Self-reported data
                 )
             )
 
@@ -160,15 +158,14 @@ class DiligenceService:
                     )
                 )
 
-            # Plaid verification flag
-            if not external_data["plaid"].get("revenue_verified"):
-                risks.append(
-                    RiskFlag(
-                        code="REVENUE_UNVERIFIED",
-                        severity="medium",
-                        description="Revenue data is self-reported and not verified via Plaid or bank statements.",
-                    )
+            # Revenue is self-reported (not verified)
+            risks.append(
+                RiskFlag(
+                    code="REVENUE_UNVERIFIED",
+                    severity="medium",
+                    description="Revenue data is self-reported and not verified via bank statements.",
                 )
+            )
 
         # Team size check
         team_size = profile.team_size

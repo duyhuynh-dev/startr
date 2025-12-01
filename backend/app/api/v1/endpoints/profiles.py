@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy import select
@@ -9,9 +9,11 @@ from sqlmodel import Session
 
 from app.core.exceptions import NotFoundError
 from app.core.config import settings
+from app.core.dependencies import get_optional_user
 from app.core.rate_limit import limiter
 from app.db.session import get_session
 from app.models.profile import Profile
+from app.models.user import User
 from app.schemas.profile import BaseProfile, ProfileCreate, ProfileUpdate
 from app.services.profile_cache import profile_cache_service
 
@@ -43,9 +45,69 @@ router = APIRouter()
 def create_profile(
     payload: ProfileCreate,  # Body parameter
     session: Session = Depends(get_session),
+    user: Optional[User] = Depends(get_optional_user),
 ) -> BaseProfile:
-    """Create a new profile."""
+    """Create or update a profile. If user is authenticated, links it to their account.
+    
+    During onboarding, this will:
+    - Update existing profile if user has one
+    - Link existing profile if found by email
+    - Create new profile and link it
+    """
     data = payload.model_dump()
+    
+    # If user is authenticated, check if they already have a profile
+    if user:
+        # IMPORTANT: Always update existing profile if user has one
+        # This handles the case where signup created a basic profile
+        if user.profile_id:
+            existing_profile = session.get(Profile, user.profile_id)
+            if existing_profile:
+                # Update existing profile with new data
+                for key, value in data.items():
+                    if key != "id" and value is not None:  # Don't overwrite ID
+                        setattr(existing_profile, key, value)
+                existing_profile.updated_at = datetime.utcnow()
+                session.add(existing_profile)
+                session.commit()
+                session.refresh(existing_profile)
+                
+                # Invalidate cache
+                profile_cache_service.invalidate_profile(existing_profile.id)
+                
+                base_profile = profile_cache_service._profile_to_base(existing_profile)
+                from app.core.cache import CACHE_TTL_LONG, cache_service
+                cache_service.set(cache_service.get_profile_key(existing_profile.id), base_profile.model_dump(), CACHE_TTL_LONG)
+                
+                return base_profile
+        
+        # If no linked profile, check if there's an unlinked profile with same email
+        profile_by_email = session.exec(
+            select(Profile).where(Profile.email == payload.email)
+        ).first()
+        if profile_by_email:
+            # Link existing profile to user
+            user.profile_id = profile_by_email.id
+            session.add(user)
+            
+            # Update the profile with new data
+            for key, value in data.items():
+                if key != "id" and value is not None:
+                    setattr(profile_by_email, key, value)
+            profile_by_email.updated_at = datetime.utcnow()
+            session.add(profile_by_email)
+            session.commit()
+            session.refresh(profile_by_email)
+            
+            # Invalidate cache
+            profile_cache_service.invalidate_profile(profile_by_email.id)
+            
+            base_profile = profile_cache_service._profile_to_base(profile_by_email)
+            from app.core.cache import CACHE_TTL_LONG, cache_service
+            cache_service.set(cache_service.get_profile_key(profile_by_email.id), base_profile.model_dump(), CACHE_TTL_LONG)
+            
+            return base_profile
+    
     # Ensure verification is a dict, not None
     if not data.get("verification"):
         data["verification"] = {
@@ -56,8 +118,17 @@ def create_profile(
         }
     elif hasattr(data["verification"], "model_dump"):
         data["verification"] = data["verification"].model_dump()
+    
+    # Create new profile
     profile = Profile(**data)
     session.add(profile)
+    session.flush()  # Get profile ID before linking
+    
+    # Link to user if authenticated
+    if user:
+        user.profile_id = profile.id
+        session.add(user)
+    
     session.commit()
     session.refresh(profile)
     

@@ -41,8 +41,9 @@ class MessagingService:
         
         session.commit()
         session.refresh(message)
+        
         # Convert SQLModel to Pydantic
-        return MessageResponse(
+        message_response = MessageResponse(
             id=message.id,
             match_id=message.match_id,
             sender_id=message.sender_id,
@@ -51,6 +52,9 @@ class MessagingService:
             read_at=message.read_at,
             created_at=message.created_at,
         )
+        
+        
+        return message_response
 
     def list_messages(
         self, session: Session, match_id: str, profile_id: str, limit: int = 50

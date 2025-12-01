@@ -31,9 +31,6 @@ class Settings(BaseSettings):
     # External API Keys (Optional - for ETL services)
     crunchbase_api_key: Optional[str] = None
     clearbit_api_key: Optional[str] = None
-    plaid_client_id: Optional[str] = None
-    plaid_secret: Optional[str] = None
-    plaid_environment: str = "sandbox"
 
     # ML Configuration
     embedding_model: str = "all-MiniLM-L6-v2"  # Sentence transformer model
@@ -41,6 +38,54 @@ class Settings(BaseSettings):
     ml_similarity_weight: float = 0.6  # Weight for embedding similarity in ranking
     ml_diligence_weight: float = 0.3  # Weight for diligence scores in ranking
     ml_engagement_weight: float = 0.1  # Weight for user engagement signals
+
+    # Authentication Configuration
+    secret_key: str = "your-secret-key-change-in-production"  # JWT secret key - MUST be changed in production
+    algorithm: str = "HS256"  # JWT algorithm
+    access_token_expire_minutes: int = 30  # Access token expiration
+    refresh_token_expire_days: int = 7  # Refresh token expiration
+    
+    # OAuth Configuration (Optional - add API keys when ready)
+    firebase_project_id: Optional[str] = None
+    firebase_private_key: Optional[str] = None
+    firebase_client_email: Optional[str] = None
+    linkedin_client_id: Optional[str] = None
+    linkedin_client_secret: Optional[str] = None
+    google_client_id: Optional[str] = None
+    google_client_secret: Optional[str] = None
+    
+    # Email Configuration (Optional - for password reset and verification)
+    smtp_host: Optional[str] = None  # e.g., "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_user: Optional[str] = None  # Email address
+    smtp_password: Optional[str] = None  # Email password or app password
+    smtp_from_email: Optional[str] = None  # From address for emails
+    smtp_from_name: str = "VC × Startup Matching"
+    smtp_use_tls: bool = True
+    frontend_url: str = "http://localhost:3000"  # Frontend URL for email links
+    
+    # Token expiration
+    password_reset_token_expire_hours: int = 24  # Password reset tokens valid for 24 hours
+    email_verification_token_expire_hours: int = 48  # Email verification tokens valid for 48 hours
+    
+    # File Storage Configuration (MinIO or S3)
+    storage_type: str = "minio"  # "minio" or "s3"
+    # MinIO Configuration
+    minio_endpoint: str = "localhost:9000"
+    minio_access_key: str = "minioadmin"
+    minio_secret_key: str = "minioadmin"
+    minio_use_ssl: bool = False
+    minio_bucket: str = "vc-matcher"
+    # AWS S3 Configuration (Alternative)
+    aws_access_key_id: Optional[str] = None
+    aws_secret_access_key: Optional[str] = None
+    aws_s3_bucket: Optional[str] = None
+    aws_region: str = "us-east-1"
+    # File Upload Limits
+    max_file_size_mb: int = 10  # Maximum file size in MB
+    allowed_image_types: List[str] = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"]
+    allowed_document_types: List[str] = ["application/pdf", "image/jpeg", "image/jpg", "image/png"]
+    signed_url_expire_seconds: int = 3600  # Signed URLs expire in 1 hour
 
 
 @lru_cache

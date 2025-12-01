@@ -17,6 +17,7 @@ from app.core.handlers import (
     value_error_handler,
 )
 from app.core.rate_limit import limiter
+from app.core.error_middleware import ErrorLoggingMiddleware
 from app.core.security_middleware import (
     InputSanitizationMiddleware,
     SecurityHeadersMiddleware,
@@ -96,13 +97,26 @@ def create_application() -> FastAPI:
     # Rate limiting exception handler
     app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
-    # Security middleware (order matters - security headers should be first)
+    # Error logging middleware - MUST be added FIRST (innermost) to catch all errors
+    app.add_middleware(ErrorLoggingMiddleware)
+    
+    # Security middleware (added first = inner layer)
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(InputSanitizationMiddleware)
     
+    # CORS configuration - MUST be added LAST (outermost layer)
+    # In FastAPI/Starlette, middleware executes in REVERSE order:
+    # Last added = Outermost (executes FIRST, wraps everything)
+    # First added = Innermost (executes LAST)
+    # This ensures CORS headers are always present, even in error responses
+    cors_origins = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
+    
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.allowed_hosts,
+        allow_origins=cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -114,12 +128,21 @@ def create_application() -> FastAPI:
     app.state.limiter = limiter
 
     @app.on_event("startup")
-    def on_startup() -> None:
+    async def on_startup() -> None:
         create_db_and_tables()
+        # Start WebSocket broadcast worker for real-time messaging
+        try:
+            from app.services.realtime_broadcast import start_broadcast_worker
+            start_broadcast_worker()
+        except Exception as e:
+            # Log but don't fail startup if WebSocket worker fails
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Failed to start WebSocket broadcast worker: {e}")
 
     @app.get("/healthz", tags=["health"])
-    @limiter.limit("100/minute")  # Rate limit health checks
-    def healthcheck(request: Request) -> dict[str, str]:
+    def healthcheck() -> dict[str, str]:
+        """Health check endpoint."""
         return {"status": "ok"}
 
     return app

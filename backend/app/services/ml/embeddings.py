@@ -3,21 +3,31 @@
 from __future__ import annotations
 
 import logging
+import os
+import warnings
 from typing import List, Optional
+
+# Initialize logger BEFORE trying to use it in exception handler
+logger = logging.getLogger(__name__)
+
+# Suppress protobuf warnings before importing ML dependencies
+os.environ['PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION'] = 'python'
+warnings.filterwarnings('ignore', message='.*MessageFactory.*')
+warnings.filterwarnings('ignore', category=UserWarning, module='.*protobuf.*')
 
 try:
     from sentence_transformers import SentenceTransformer
     import torch
     SENTENCE_TRANSFORMERS_AVAILABLE = True
-except ImportError:
+except (ImportError, ValueError, Exception) as e:
+    # Catch all exceptions including Keras version conflicts and protobuf errors
+    logger.warning(f"ML dependencies not available: {type(e).__name__}: {e}")
     SENTENCE_TRANSFORMERS_AVAILABLE = False
     SentenceTransformer = None
     torch = None
 
 from app.core.cache import CACHE_TTL_LONG, cache_service
 from app.core.config import settings
-
-logger = logging.getLogger(__name__)
 
 
 class EmbeddingService:

@@ -88,7 +88,7 @@ All configuration is managed through environment variables. See `.env.example` f
 
 - **Database**: PostgreSQL connection string
 - **Redis**: Redis connection URL
-- **External APIs**: Optional keys for Crunchbase, Clearbit, Plaid (currently stubs)
+- **External APIs**: Optional keys for Crunchbase, Clearbit (currently stubs)
 - **Logging**: Log level (INFO, DEBUG, etc.)
 
 ## Project Layout
@@ -99,7 +99,7 @@ All configuration is managed through environment variables. See `.env.example` f
 - `app/services`: Business logic (matching, messaging, discovery, diligence, admin)
 - `app/models`: SQLModel table definitions
 - `app/db`: Database session helpers and migrations
-- `app/services/etl`: Data source integrations (Crunchbase, Clearbit, Plaid stubs)
+- `app/services/etl`: Data source integrations (Crunchbase, Clearbit stubs)
 
 ## Development
 
@@ -189,3 +189,14 @@ ML_ENABLED=true
 7. ✅ Redis caching layer with TTL management
 8. ✅ ML integration (PyTorch recommendation engine)
 9. ⏳ Seed data scripts
+
+## 🆓 Free Setup for Personal Projects
+
+The ETL pipeline works **completely free** without any API keys:
+- Returns stub data automatically
+- No errors or breaking
+- Zero costs
+- Perfect for personal projects!
+
+See `FREE_ETL_SETUP.md` for details on free alternatives.
+

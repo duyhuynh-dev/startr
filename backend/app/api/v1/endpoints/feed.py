@@ -81,14 +81,27 @@ def get_discovery_feed(
     role: Optional[str] = Query(None, description="Filter by role: investor or founder (auto-detected if omitted)"),
     limit: int = Query(20, ge=1, le=50, description="Number of profiles to return"),
     cursor: Optional[str] = Query(None, description="Pagination cursor from previous response"),
+    stages: Optional[list[str]] = Query(None, description="Preferred stages (used as feed filters)"),
+    sectors: Optional[list[str]] = Query(None, description="Preferred sectors (used as feed filters)"),
+    location: Optional[str] = Query(None, description="Location filter (city, region, or country)"),
+    min_check_size: Optional[int] = Query(None, description="Minimum preferred check size (USD)"),
+    max_check_size: Optional[int] = Query(None, description="Maximum preferred check size (USD)"),
     session: Session = Depends(get_session),
 ) -> DiscoveryFeedResponse:
     """Get ranked discovery feed of profiles to potentially match with."""
-    try:
-        return discovery_feed_service.get_discovery_feed(session, profile_id, role, limit, cursor)
-    except ValueError as e:
-        from app.core.exceptions import ValidationError
-        raise ValidationError(message=str(e))
+    # Custom exceptions from the service layer are handled by FastAPI's exception handlers
+    return discovery_feed_service.get_discovery_feed(
+        session=session,
+        profile_id=profile_id,
+        role_filter=role,
+        limit=limit,
+        cursor=cursor,
+        stages=stages,
+        sectors=sectors,
+        location=location,
+        min_check_size=min_check_size,
+        max_check_size=max_check_size,
+    )
 
 
 @router.get(
@@ -214,9 +227,6 @@ def get_standouts(
     session: Session = Depends(get_session),
 ) -> List[StandoutProfile]:
     """Get standout profiles (most compatible, similar to Hinge Standouts)."""
-    try:
-        return discovery_feed_service.get_standouts(session, profile_id, limit)
-    except ValueError as e:
-        from app.core.exceptions import ValidationError
-        raise ValidationError(message=str(e))
+    # Custom exceptions from the service layer are handled by FastAPI's exception handlers
+    return discovery_feed_service.get_standouts(session, profile_id, limit)
 

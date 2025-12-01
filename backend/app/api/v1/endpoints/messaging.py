@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import List
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
 from sqlmodel import Session
 
 from app.core.exceptions import ValidationError
@@ -69,12 +69,124 @@ router = APIRouter()
         400: {"description": "Invalid message (e.g., not part of the match)"},
     },
 )
-def create_message(payload: MessageCreate, session: Session = Depends(get_session)) -> MessageResponse:
+async def create_message(
+    payload: MessageCreate, 
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session)
+) -> MessageResponse:
     """Send a message in a match thread."""
     try:
-        return messaging_service.create_message(session, payload)
+        message_response = messaging_service.create_message(session, payload)
+        
+        # Broadcast via WebSocket in background (non-blocking)
+        async def broadcast_message():
+            try:
+                from app.services.realtime import connection_manager
+                from app.db.session import engine
+                from sqlmodel import Session as SQLSession
+                import logging
+                
+                logger = logging.getLogger(__name__)
+                
+                # Convert Pydantic model to JSON-serializable dict (handles datetime)
+                # Ensure datetime fields are explicitly in UTC with 'Z' suffix
+                message_data = message_response.model_dump(mode='json')
+                # Pydantic's model_dump(mode='json') should handle datetime, but ensure UTC
+                if 'created_at' in message_data and message_data['created_at']:
+                    # Ensure datetime string ends with 'Z' to indicate UTC
+                    created_at_str = message_data['created_at']
+                    if isinstance(created_at_str, str) and not created_at_str.endswith('Z'):
+                        # Add 'Z' if it's missing (assumes UTC)
+                        message_data['created_at'] = created_at_str.rstrip('Z') + 'Z'
+                
+                message_dict = {
+                    "type": "new_message",
+                    "message": message_data
+                }
+                
+                # Broadcast to both users in the match
+                with SQLSession(engine) as broadcast_session:
+                    await connection_manager.broadcast_message(
+                        message_dict,
+                        message_response.match_id,
+                        broadcast_session
+                    )
+                logger.info(f"✅ Message broadcasted via WebSocket for match {message_response.match_id}: {message_dict}")
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"WebSocket broadcast failed (non-critical): {e}", exc_info=True)
+        
+        # Add broadcast task to background
+        background_tasks.add_task(broadcast_message)
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"📤 Message created, queued for broadcast: match={message_response.match_id}, sender={message_response.sender_id}")
+        
+        return message_response
     except ValueError as e:
         raise ValidationError(message=str(e))
+
+
+@router.get(
+    "",
+    response_model=List[ConversationThread],
+    summary="List all conversations",
+    description="""
+    Get all conversation threads for a user with last message preview and unread counts. 
+    Ordered by most recent activity (last message timestamp).
+    
+    **Example Request:**
+    ```
+    GET /api/v1/messages?profile_id=user-id
+    ```
+    
+    **Example Response:**
+    ```json
+    [
+        {
+            "match_id": "match-id-1",
+            "founder_id": "founder-id",
+            "investor_id": "investor-id",
+            "other_party_id": "other-party-id",
+            "other_party_name": "John Doe",
+            "other_party_avatar_url": "https://example.com/avatar.jpg",
+            "last_message_preview": "Looking forward to chatting!",
+            "last_message_at": "2025-01-20T14:30:00Z",
+            "unread_count": 2,
+            "status": "active"
+        }
+    ]
+    ```
+    """,
+    responses={
+        200: {
+            "description": "Conversations returned successfully",
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "match_id": "match-id",
+                            "founder_id": "founder-id",
+                            "investor_id": "investor-id",
+                            "other_party_id": "other-party-id",
+                            "other_party_name": "John Doe",
+                            "last_message_preview": "Last message...",
+                            "unread_count": 0,
+                            "status": "active"
+                        }
+                    ]
+                }
+            }
+        },
+    },
+)
+def list_conversations(
+    profile_id: str = Query(..., description="ID of the user requesting conversations"),
+    session: Session = Depends(get_session),
+) -> List[ConversationThread]:
+    """Get all conversation threads for a user with last message preview and unread counts."""
+    return messaging_service.list_conversations(session, profile_id)
 
 
 @router.get(
@@ -145,65 +257,3 @@ def list_messages(
         return messaging_service.list_messages(session, match_id, profile_id, limit)
     except ValueError as e:
         raise ValidationError(message=str(e))
-
-
-@router.get(
-    "",
-    response_model=List[ConversationThread],
-    summary="List all conversations",
-    description="""
-    Get all conversation threads for a user with last message preview and unread counts. 
-    Ordered by most recent activity (last message timestamp).
-    
-    **Example Request:**
-    ```
-    GET /api/v1/messages?profile_id=user-id
-    ```
-    
-    **Example Response:**
-    ```json
-    [
-        {
-            "match_id": "match-id-1",
-            "founder_id": "founder-id",
-            "investor_id": "investor-id",
-            "other_party_id": "other-party-id",
-            "other_party_name": "John Doe",
-            "other_party_avatar_url": "https://example.com/avatar.jpg",
-            "last_message_preview": "Looking forward to chatting!",
-            "last_message_at": "2025-01-20T14:30:00Z",
-            "unread_count": 2,
-            "status": "active"
-        }
-    ]
-    ```
-    """,
-    responses={
-        200: {
-            "description": "Conversations returned successfully",
-            "content": {
-                "application/json": {
-                    "example": [
-                        {
-                            "match_id": "match-id",
-                            "founder_id": "founder-id",
-                            "investor_id": "investor-id",
-                            "other_party_id": "other-party-id",
-                            "other_party_name": "John Doe",
-                            "last_message_preview": "Last message...",
-                            "unread_count": 0,
-                            "status": "active"
-                        }
-                    ]
-                }
-            }
-        },
-    },
-)
-def list_conversations(
-    profile_id: str = Query(..., description="ID of the user requesting conversations"),
-    session: Session = Depends(get_session),
-) -> List[ConversationThread]:
-    """Get all conversation threads for a user with last message preview and unread counts."""
-    return messaging_service.list_conversations(session, profile_id)
-

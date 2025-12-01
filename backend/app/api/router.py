@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import admin, diligence, feed, matches, messaging, profiles, prompts, ml
+from app.api.v1.endpoints import admin, auth, diligence, feed, matches, messaging, profiles, prompts, ml, storage, realtime
 
 api_router = APIRouter()
 
@@ -50,5 +50,23 @@ api_router.include_router(
     ml.router,
     prefix="/v1/ml",
     tags=["ML"],
+)
+
+api_router.include_router(
+    auth.router,
+    prefix="/v1/auth",
+    tags=["Authentication"],
+)
+
+api_router.include_router(
+    storage.router,
+    prefix="/v1/storage",
+    tags=["Storage"],
+)
+
+api_router.include_router(
+    realtime.router,
+    prefix="/v1/realtime",
+    tags=["Real-time"],
 )
 

@@ -40,6 +40,11 @@ class DiscoveryFeedService:
         role_filter: Optional[str] = None,
         limit: int = 20,
         cursor: Optional[str] = None,
+        stages: Optional[List[str]] = None,
+        sectors: Optional[List[str]] = None,
+        location: Optional[str] = None,
+        min_check_size: Optional[int] = None,
+        max_check_size: Optional[int] = None,
     ) -> DiscoveryFeedResponse:
         """
         Get ranked discovery feed for a user.
@@ -47,47 +52,73 @@ class DiscoveryFeedService:
         """
         current_profile = session.get(Profile, profile_id)
         if not current_profile:
-            raise ValueError("Profile not found")
+            from app.core.exceptions import NotFoundError
+            raise NotFoundError(resource="Profile", identifier=profile_id)
 
         # Determine target role (opposite of current user)
         target_role = role_filter or ("founder" if current_profile.role == "investor" else "investor")
 
-        # Try Redis cache first
-        cache_key = cache_service.get_feed_key(profile_id, target_role)
-        cached = cache_service.get(cache_key)
-        if cached:
-            feed_data = cached if isinstance(cached, dict) else json.loads(str(cached))
-            profile_ids = feed_data.get("profile_ids", [])
-            
-            # Apply pagination
-            start_idx = int(cursor) if cursor else 0
-            end_idx = start_idx + limit
-            paginated_ids = profile_ids[start_idx:end_idx]
-            
-            if not paginated_ids:
-                return DiscoveryFeedResponse(profiles=[], cursor=None, has_more=False)
-            
-            # Fetch profiles and build response
-            profiles = self._fetch_profiles_with_metadata(
-                session, profile_id, paginated_ids, target_role
-            )
-            
-            next_cursor = str(end_idx) if end_idx < len(profile_ids) else None
-            return DiscoveryFeedResponse(
-                profiles=profiles,
-                cursor=next_cursor,
-                has_more=end_idx < len(profile_ids),
-            )
+        # Only use Redis cache when no filters are applied.
+        use_cache = not any([stages, sectors, location, min_check_size, max_check_size])
+        ranked_profile_ids: List[str]
 
-        # Cache miss - compute ranking
-        ranked_profile_ids = self._rank_profiles(session, current_profile, target_role)
-        
-        # Cache the ranking
-        cache_data = {
-            "profile_ids": ranked_profile_ids,
-            "generated_at": datetime.utcnow().isoformat()
-        }
-        cache_service.set(cache_key, cache_data, self.FEED_CACHE_TTL)
+        if use_cache:
+            cache_key = cache_service.get_feed_key(profile_id, target_role)
+            cached = cache_service.get(cache_key)
+            if cached:
+                feed_data = cached if isinstance(cached, dict) else json.loads(str(cached))
+                profile_ids = feed_data.get("profile_ids", [])
+                
+                # Apply pagination
+                start_idx = int(cursor) if cursor else 0
+                end_idx = start_idx + limit
+                paginated_ids = profile_ids[start_idx:end_idx]
+                
+                if not paginated_ids:
+                    return DiscoveryFeedResponse(profiles=[], cursor=None, has_more=False)
+                
+                # Fetch profiles and build response
+                profiles = self._fetch_profiles_with_metadata(
+                    session, profile_id, paginated_ids, target_role
+                )
+                
+                next_cursor = str(end_idx) if end_idx < len(profile_ids) else None
+                return DiscoveryFeedResponse(
+                    profiles=profiles,
+                    cursor=next_cursor,
+                    has_more=end_idx < len(profile_ids),
+                )
+
+            # Cache miss - compute ranking without additional filters
+            ranked_profile_ids = self._rank_profiles(
+                session=session,
+                current_profile=current_profile,
+                target_role=target_role,
+                stages=None,
+                sectors=None,
+                location=None,
+                min_check_size=None,
+                max_check_size=None,
+            )
+            
+            # Cache the ranking
+            cache_data = {
+                "profile_ids": ranked_profile_ids,
+                "generated_at": datetime.utcnow().isoformat()
+            }
+            cache_service.set(cache_key, cache_data, self.FEED_CACHE_TTL)
+        else:
+            # When filters are applied, compute ranking on the fly without caching
+            ranked_profile_ids = self._rank_profiles(
+                session=session,
+                current_profile=current_profile,
+                target_role=target_role,
+                stages=stages,
+                sectors=sectors,
+                location=location,
+                min_check_size=min_check_size,
+                max_check_size=max_check_size,
+            )
 
         # Apply pagination
         start_idx = int(cursor) if cursor else 0
@@ -109,8 +140,26 @@ class DiscoveryFeedService:
     def get_likes_queue(self, session: Session, profile_id: str) -> List[LikesQueueItem]:
         """
         Get users who have liked you (likes queue).
+        Excludes likes that resulted in matches (those appear in Messages).
         Checks Redis first, falls back to database.
         """
+        from app.models.match import Match
+        
+        # Get all matches for this profile to exclude
+        matches = session.exec(
+            select(Match).where(
+                (Match.founder_id == profile_id) | (Match.investor_id == profile_id)
+            )
+        ).scalars().all()  # Use scalars() to get Match objects
+        
+        # Build set of profile IDs we've matched with
+        matched_profile_ids = set()
+        for match in matches:
+            if match.founder_id == profile_id:
+                matched_profile_ids.add(match.investor_id)
+            else:
+                matched_profile_ids.add(match.founder_id)
+        
         queue_key = f"{LIKES_QUEUE_PREFIX}{profile_id}"
         
         try:
@@ -121,37 +170,41 @@ class DiscoveryFeedService:
                 for like_id in like_ids:
                     like = session.get(Like, like_id)
                     if like and like.recipient_id == profile_id:
-                        sender = session.get(Profile, like.sender_id)
-                        if sender:
-                            likes.append(
-                                LikesQueueItem(
-                                    profile=self._profile_to_base(sender),
-                                    like_id=like.id,
-                                    note=like.note,
-                                    liked_at=like.created_at.isoformat(),
+                        # Exclude if this like resulted in a match
+                        if like.sender_id not in matched_profile_ids:
+                            sender = session.get(Profile, like.sender_id)
+                            if sender:
+                                likes.append(
+                                    LikesQueueItem(
+                                        profile=self._profile_to_base(sender),
+                                        like_id=like.id,
+                                        note=like.note,
+                                        liked_at=like.created_at.isoformat(),
+                                    )
                                 )
-                            )
                 return likes
         except RedisError:
             pass
 
-        # Fallback to database - ensure we get Like objects
+        # Fallback to database - ensure we get Like objects, excluding matches
         likes = session.exec(
             select(Like).where(Like.recipient_id == profile_id).order_by(Like.created_at.desc()).limit(50)
         ).scalars().all()
         
         result = []
         for like in likes:
-            sender = session.get(Profile, like.sender_id)
-            if sender:
-                result.append(
-                    LikesQueueItem(
-                        profile=self._profile_to_base(sender),
-                        like_id=like.id,
-                        note=like.note,
-                        liked_at=like.created_at.isoformat(),
+            # Exclude if this like resulted in a match
+            if like.sender_id not in matched_profile_ids:
+                sender = session.get(Profile, like.sender_id)
+                if sender:
+                    result.append(
+                        LikesQueueItem(
+                            profile=self._profile_to_base(sender),
+                            like_id=like.id,
+                            note=like.note,
+                            liked_at=like.created_at.isoformat(),
+                        )
                     )
-                )
         return result
 
     def get_standouts(
@@ -199,22 +252,50 @@ class DiscoveryFeedService:
         return scored_profiles[:limit]
 
     def _rank_profiles(
-        self, session: Session, current_profile: Profile, target_role: str
+        self,
+        session: Session,
+        current_profile: Profile,
+        target_role: str,
+        stages: Optional[List[str]] = None,
+        sectors: Optional[List[str]] = None,
+        location: Optional[str] = None,
+        min_check_size: Optional[int] = None,
+        max_check_size: Optional[int] = None,
     ) -> List[str]:
         """Rank profiles by compatibility using ML when available, falling back to heuristics."""
         # Get all profiles of target role, excluding current user and already matched/liked
         excluded_ids = self._get_excluded_profile_ids(session, current_profile.id)
         
         # Ensure we get Profile objects, not Row objects
-        candidates = session.exec(
+        # Exclude "Upload Test User" specifically
+        candidates: List[Profile] = session.exec(
             select(Profile).where(
                 and_(
                     Profile.role == target_role,
                     Profile.id != current_profile.id,
                     Profile.id.notin_(excluded_ids) if excluded_ids else True,
+                    Profile.full_name != "Upload Test User",  # Exclude this specific test user
                 )
             )
         ).scalars().all()
+
+        # Apply additional feed filters (stage, sector, location, check size)
+        initial_count = len(candidates)
+        candidates = self._apply_feed_filters(
+            current_profile=current_profile,
+            candidates=candidates,
+            stages=stages,
+            sectors=sectors,
+            location=location,
+            min_check_size=min_check_size,
+            max_check_size=max_check_size,
+        )
+        
+        # Log filter application if filters were applied
+        if any([stages, sectors, location, min_check_size, max_check_size]):
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Filters applied - stages: {stages}, sectors: {sectors}, location: {location}, min_check: {min_check_size}, max_check: {max_check_size}. Filtered from {initial_count} to {len(candidates)} candidates.")
 
         if not candidates:
             return []
@@ -269,6 +350,94 @@ class DiscoveryFeedService:
 
         scored.sort(key=lambda x: x[1], reverse=True)
         return [profile_id for profile_id, _ in scored]
+
+    def _apply_feed_filters(
+        self,
+        current_profile: Profile,
+        candidates: List[Profile],
+        stages: Optional[List[str]] = None,
+        sectors: Optional[List[str]] = None,
+        location: Optional[str] = None,
+        min_check_size: Optional[int] = None,
+        max_check_size: Optional[int] = None,
+    ) -> List[Profile]:
+        """Apply user-selected feed filters on top of eligibility/exclusions.
+        
+        This is intentionally conservative (filters only when values are provided)
+        and runs in Python to avoid complex JSON queries.
+        """
+        if not any([stages, sectors, location, min_check_size, max_check_size]):
+            return candidates
+
+        filtered: List[Profile] = []
+
+        normalized_stages = {s.lower() for s in (stages or [])}
+        normalized_sectors = {s.lower() for s in (sectors or [])}
+        location_query = location.lower().strip() if location else None
+
+        for candidate in candidates:
+            keep = True
+
+            # Stage filter: require overlap with candidate.focus_stages
+            if normalized_stages:
+                focus_stages = {s.lower() for s in (candidate.focus_stages or [])}
+                if not focus_stages.intersection(normalized_stages):
+                    keep = False
+
+            # Sector filter: require overlap with candidate.focus_sectors
+            if keep and normalized_sectors:
+                focus_sectors = {s.lower() for s in (candidate.focus_sectors or [])}
+                if not focus_sectors.intersection(normalized_sectors):
+                    keep = False
+
+            # Location filter: smart matching - extract city/primary location from query
+            if keep and location_query:
+                if not candidate.location:
+                    keep = False
+                else:
+                    candidate_loc_lower = candidate.location.lower().strip()
+                    query_lower = location_query.lower().strip()
+                    
+                    # Extract the first significant part (usually the city) from the query
+                    # e.g., "New York, New York, United States" -> "new york"
+                    query_parts = [p.strip() for p in query_lower.split(',')]
+                    primary_query = query_parts[0] if query_parts else query_lower
+                    
+                    # Check if the primary location part matches any part of candidate location
+                    # This handles "New York" matching "New York, NY" or "New York, New York, United States"
+                    # or even just "NY" if the query is "New York"
+                    matches = (
+                        primary_query in candidate_loc_lower or
+                        query_lower in candidate_loc_lower or
+                        any(part in candidate_loc_lower for part in query_parts[:2] if len(part) > 2)
+                    )
+                    
+                    if not matches:
+                        keep = False
+
+            # Check size filter: require some overlap between candidate check range and filter range
+            if keep and (min_check_size is not None or max_check_size is not None):
+                cand_min = candidate.check_size_min
+                cand_max = candidate.check_size_max
+
+                # If candidate has no check size info, keep them (we don't want to over-filter)
+                if cand_min is not None or cand_max is not None:
+                    # Define candidate range, treating missing bounds as open-ended
+                    cand_min_val = cand_min if cand_min is not None else 0
+                    cand_max_val = cand_max if cand_max is not None else float("inf")
+
+                    # Define filter range
+                    filt_min_val = min_check_size if min_check_size is not None else 0
+                    filt_max_val = max_check_size if max_check_size is not None else float("inf")
+
+                    # Require overlap between [cand_min_val, cand_max_val] and [filt_min_val, filt_max_val]
+                    if cand_max_val < filt_min_val or cand_min_val > filt_max_val:
+                        keep = False
+
+            if keep:
+                filtered.append(candidate)
+
+        return filtered
 
     def _compute_compatibility_score(
         self, session: Session, profile_a: Profile, profile_b: Profile
@@ -420,7 +589,7 @@ class DiscoveryFeedService:
             select(Match).where(
                 (Match.founder_id == profile_id) | (Match.investor_id == profile_id)
             )
-        ).all()
+        ).scalars().all()  # Use scalars() to get Match objects
         
         for match in matches:
             if match.founder_id == profile_id:

@@ -11,6 +11,7 @@ from typing import Generator
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["REDIS_URL"] = "redis://localhost:6379/15"
 os.environ["RATE_LIMIT_ENABLED"] = "false"
+os.environ["ML_ENABLED"] = "false"  # Disable ML in tests to avoid dependency conflicts
 
 import pytest
 from fakeredis import FakeStrictRedis
@@ -37,6 +38,7 @@ def test_settings():
     os.environ["DATABASE_URL"] = "sqlite:///:memory:"
     os.environ["REDIS_URL"] = "redis://localhost:6379/15"  # Use a test DB
     os.environ["RATE_LIMIT_ENABLED"] = "false"  # Disable rate limiting in tests
+    os.environ["ML_ENABLED"] = "false"  # Disable ML in tests to avoid dependency conflicts
     
     # Clear settings cache to force reload with new env vars
     from app.core.config import get_settings
@@ -59,6 +61,7 @@ def db_session() -> Generator[Session, None, None]:
         Profile,
         PromptTemplate,
         StartupOfMonth,
+        User,
     )
     
     # Create in-memory SQLite engine

@@ -67,3 +67,50 @@ def test_get_diligence_summary_force_refresh(client: TestClient, db_session, sam
     assert "score" in data  # DiligenceSummary uses "score"
     assert "metrics" in data
 
+
+@pytest.mark.unit
+def test_get_diligence_summary_cached(client: TestClient, db_session, sample_founder_profile_data):
+    """Test that diligence summary can be cached."""
+    founder_data = sample_founder_profile_data.copy()
+    prompts = founder_data.pop("prompts", [])
+    verification = founder_data.pop("verification", {})
+    founder = Profile(
+        **founder_data,
+        prompts=[{**p} for p in prompts],
+        verification=verification,
+    )
+    db_session.add(founder)
+    db_session.commit()
+    
+    # First request
+    response1 = client.get(f"/api/v1/diligence/{founder.id}")
+    assert response1.status_code == status.HTTP_200_OK
+    
+    # Second request (should use cache if implemented)
+    response2 = client.get(f"/api/v1/diligence/{founder.id}")
+    assert response2.status_code == status.HTTP_200_OK
+    assert response2.json()["score"] == response1.json()["score"]
+
+
+@pytest.mark.unit
+def test_get_diligence_summary_investor(client: TestClient, db_session, sample_investor_profile_data):
+    """Test getting diligence for investor profile (may have different scoring)."""
+    investor_data = sample_investor_profile_data.copy()
+    prompts = investor_data.pop("prompts", [])
+    verification = investor_data.pop("verification", {})
+    investor = Profile(
+        **investor_data,
+        prompts=[{**p} for p in prompts],
+        verification=verification,
+    )
+    db_session.add(investor)
+    db_session.commit()
+    
+    response = client.get(f"/api/v1/diligence/{investor.id}")
+    
+    # Should work for investors too, though scoring may differ
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert "score" in data
+    assert 0 <= data["score"] <= 100
+

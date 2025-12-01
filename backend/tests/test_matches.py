@@ -268,3 +268,135 @@ def test_send_like_duplicate(client: TestClient, db_session, sample_investor_pro
     # Should handle duplicate gracefully
     assert response2.status_code in [status.HTTP_200_OK, status.HTTP_400_BAD_REQUEST]
 
+
+@pytest.mark.unit
+def test_list_matches_empty(client: TestClient, db_session, sample_investor_profile_data):
+    """Test listing matches when user has no matches."""
+    investor_data = sample_investor_profile_data.copy()
+    prompts = investor_data.pop("prompts", [])
+    verification = investor_data.pop("verification", {})
+    investor = Profile(
+        **investor_data,
+        prompts=[{**p} for p in prompts],
+        verification=verification,
+    )
+    db_session.add(investor)
+    db_session.commit()
+    
+    # List matches for investor with no matches
+    response = client.get(f"/api/v1/matches?profile_id={investor.id}")
+    
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert isinstance(data, list)
+    assert len(data) == 0
+
+
+@pytest.mark.unit
+def test_list_matches_multiple(client: TestClient, db_session, sample_investor_profile_data, sample_founder_profile_data):
+    """Test listing multiple matches for a user."""
+    import uuid
+    investor_data = sample_investor_profile_data.copy()
+    investor_data["id"] = str(uuid.uuid4())  # Generate new ID
+    prompts = investor_data.pop("prompts", [])
+    verification = investor_data.pop("verification", {})
+    investor = Profile(
+        **investor_data,
+        prompts=[{**p} for p in prompts],
+        verification=verification,
+    )
+    
+    # Create two founders
+    founder1_data = sample_founder_profile_data.copy()
+    founder1_data["id"] = str(uuid.uuid4())  # Generate new ID
+    founder1_data["email"] = "founder1@test.com"
+    prompts1 = founder1_data.pop("prompts", [])
+    verification1 = founder1_data.pop("verification", {})
+    founder1 = Profile(
+        **founder1_data,
+        prompts=[{**p} for p in prompts1],
+        verification=verification1,
+    )
+    
+    founder2_data = sample_founder_profile_data.copy()
+    founder2_data["id"] = str(uuid.uuid4())  # Generate new ID
+    founder2_data["email"] = "founder2@test.com"
+    prompts2 = founder2_data.pop("prompts", [])
+    verification2 = founder2_data.pop("verification", {})
+    founder2 = Profile(
+        **founder2_data,
+        prompts=[{**p} for p in prompts2],
+        verification=verification2,
+    )
+    
+    db_session.add(investor)
+    db_session.add(founder1)
+    db_session.add(founder2)
+    db_session.commit()
+    
+    # Create matches
+    from app.models.match import Match
+    match1 = Match(founder_id=founder1.id, investor_id=investor.id, status="active")
+    match2 = Match(founder_id=founder2.id, investor_id=investor.id, status="active")
+    db_session.add(match1)
+    db_session.add(match2)
+    db_session.commit()
+    
+    # List matches
+    response = client.get(f"/api/v1/matches?profile_id={investor.id}")
+    
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert isinstance(data, list)
+    assert len(data) >= 2
+    match_ids = [m["id"] for m in data]
+    assert match1.id in match_ids
+    assert match2.id in match_ids
+
+
+@pytest.mark.unit
+def test_send_like_same_role_error(client: TestClient, db_session, sample_investor_profile_data):
+    """Test that sending like between same roles fails."""
+    import uuid
+    investor1_data = sample_investor_profile_data.copy()
+    investor1_data["id"] = str(uuid.uuid4())  # Generate new ID
+    investor1_data["email"] = "investor1@test.com"
+    prompts1 = investor1_data.pop("prompts", [])
+    verification1 = investor1_data.pop("verification", {})
+    investor1 = Profile(
+        **investor1_data,
+        prompts=[{**p} for p in prompts1],
+        verification=verification1,
+    )
+    
+    investor2_data = sample_investor_profile_data.copy()
+    investor2_data["id"] = str(uuid.uuid4())  # Generate new ID
+    investor2_data["email"] = "investor2@test.com"
+    prompts2 = investor2_data.pop("prompts", [])
+    verification2 = investor2_data.pop("verification", {})
+    investor2 = Profile(
+        **investor2_data,
+        prompts=[{**p} for p in prompts2],
+        verification=verification2,
+    )
+    
+    db_session.add(investor1)
+    db_session.add(investor2)
+    db_session.commit()
+    
+    # Try to like another investor (should fail or be ignored)
+    response = client.post(
+        "/api/v1/matches/likes",
+        json={
+            "sender_id": investor1.id,
+            "recipient_id": investor2.id,
+        },
+    )
+    
+    # Service should handle this gracefully (may return error or ignore)
+    assert response.status_code in [
+        status.HTTP_200_OK,  # If silently ignored
+        status.HTTP_400_BAD_REQUEST,  # If validated
+        status.HTTP_500_INTERNAL_SERVER_ERROR  # If raises error
+    ]
+

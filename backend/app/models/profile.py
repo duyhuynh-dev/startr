@@ -19,7 +19,22 @@ class Profile(SQLModel, table=True):
     avatar_url: Optional[str] = None
     location: Optional[str] = None
     prompts: List[dict] = Field(default_factory=list, sa_column=Column(JSON, nullable=False, default=list))
+    photos: List[dict] = Field(default_factory=list, sa_column=Column(JSON, nullable=False, default=list), description="Array of {url, caption, prompt_id}")
     extra_metadata: dict | None = Field(default=None, sa_column=Column(JSON))
+
+    # Dealbreaker preferences
+    dealbreakers: dict = Field(
+        default_factory=lambda: {
+            "min_check_size": None,
+            "max_check_size": None,
+            "required_sectors": [],
+            "required_stages": [],
+            "required_locations": [],
+            "min_revenue": None,
+            "min_team_size": None,
+        },
+        sa_column=Column(JSON, nullable=False),
+    )
 
     firm: Optional[str] = None
     check_size_min: Optional[int] = None

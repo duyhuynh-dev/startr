@@ -36,17 +36,23 @@ This document tracks all remaining tasks across backend, ML, and frontend develo
 
 ### 1. Database Migrations (backend-migrations)
 
-**Status:** Pending  
+**Status:** ✅ Completed  
 **Priority:** High  
 **Description:** Create initial Alembic migration for all models.
 
 **Tasks:**
 
-- Generate initial migration: `alembic revision --autogenerate -m "Initial schema"`
-- Review and test migration
-- Create migration documentation
+- ✅ Generate initial migration: `alembic revision --autogenerate -m "Initial schema"`
+- ✅ Add users table migration for authentication
+- ✅ Review and test migration
+- ✅ Create migration documentation
 
 **External Dependencies:** None
+
+**Notes:**
+- Initial schema migration: `a02621bffd9b`
+- Users table migration: `3aeff2fffeff`
+- See `backend/MIGRATIONS.md` for usage guide
 
 ---
 
