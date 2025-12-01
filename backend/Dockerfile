@@ -11,8 +11,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency files
+# Copy dependency files and app directory
 COPY pyproject.toml ./
+COPY app ./app
 
 # Install dependencies into a virtual environment
 RUN python -m venv /opt/venv
