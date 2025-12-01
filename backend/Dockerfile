@@ -19,11 +19,16 @@ COPY app ./app
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Install backend dependencies with ML support
+# Install backend dependencies (ML disabled for faster builds)
+# To enable ML: docker build --build-arg ENABLE_ML=true ...
+ARG ENABLE_ML=false
+
 RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -e ".[dev,ml]" || \
-    pip install --no-cache-dir -e ".[ml]" || \
-    pip install --no-cache-dir -e .
+    if [ "$ENABLE_ML" = "true" ]; then \
+        pip install --no-cache-dir -e ".[dev,ml]"; \
+    else \
+        pip install --no-cache-dir -e ".[dev]" || pip install --no-cache-dir -e .; \
+    fi
 
 # Stage 2: Runtime image
 FROM python:3.12-slim
