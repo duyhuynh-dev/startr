@@ -67,7 +67,12 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:3000"  # Frontend URL for email links
     
     # CORS Configuration
-    cors_origins: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]  # Allowed CORS origins
+    # Supports exact origins and wildcard patterns (e.g., "https://*.vercel.app")
+    cors_origins: List[str] = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://*.vercel.app",  # Allow all Vercel preview deployments
+    ]  # Allowed CORS origins
     
     @field_validator("cors_origins", mode="before")
     @classmethod

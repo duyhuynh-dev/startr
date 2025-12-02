@@ -110,9 +110,25 @@ def create_application() -> FastAPI:
     # First added = Innermost (executes LAST)
     # This ensures CORS headers are always present, even in error responses
     
+    # Filter out wildcard patterns from exact origins
+    exact_origins = [origin for origin in settings.cors_origins if "*" not in origin]
+    # Extract wildcard patterns for regex matching
+    wildcard_patterns = [origin for origin in settings.cors_origins if "*" in origin]
+    
+    # Convert wildcard patterns to regex (e.g., "https://*.vercel.app" -> r"https://.*\.vercel\.app")
+    origin_regex_patterns = []
+    for pattern in wildcard_patterns:
+        # Convert wildcard to regex: escape dots, replace * with .*
+        regex = pattern.replace(".", r"\.").replace("*", ".*")
+        origin_regex_patterns.append(regex)
+    
+    # Combine regex patterns if any exist
+    origin_regex = "|".join([f"^{p}$" for p in origin_regex_patterns]) if origin_regex_patterns else None
+    
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origins,
+        allow_origins=exact_origins if exact_origins else [],
+        allow_origin_regex=origin_regex,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
