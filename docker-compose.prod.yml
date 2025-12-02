@@ -46,6 +46,7 @@ services:
       # Add other environment variables as needed
       ML_ENABLED: ${ML_ENABLED:-false}
       RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+      CORS_ORIGINS: ${CORS_ORIGINS}
     depends_on:
       postgres:
         condition: service_healthy
