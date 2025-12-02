@@ -39,6 +39,7 @@ jobs:
       
       - name: Build and push
         uses: docker/build-push-action@v5
+        continue-on-error: true  # Don't fail if Docker Hub push fails (we build on EC2)
         with:
           context: ./backend
           file: ./backend/Dockerfile
