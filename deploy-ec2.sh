@@ -41,3 +41,9 @@ echo "📋 View logs: docker-compose -f docker-compose.prod.yml logs -f"
 echo ""
 echo "⚠️  Make sure Security Group allows inbound traffic on port 8000!"
 
+
+
+
+
+
+

@@ -36,3 +36,9 @@ echo ""
 echo "📊 Check status: docker-compose -f docker-compose.prod.yml ps"
 echo "📋 View logs: docker-compose -f docker-compose.prod.yml logs -f"
 
+
+
+
+
+
+
