@@ -101,3 +101,9 @@ def test_get_email_verification_token_data_wrong_type():
     payload = get_email_verification_token_data(reset_token)
     assert payload is None
 
+
+
+
+
+
+

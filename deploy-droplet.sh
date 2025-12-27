@@ -36,3 +36,9 @@ echo ""
 echo "📊 Check status: docker-compose -f docker-compose.droplet.yml ps"
 echo "📋 View logs: docker-compose -f docker-compose.droplet.yml logs -f"
 
+
+
+
+
+
+

@@ -99,3 +99,9 @@ def test_email_verification_end_to_end(client: TestClient, db_session):
         status.HTTP_400_BAD_REQUEST
     ]
 
+
+
+
+
+
+

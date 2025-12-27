@@ -44,3 +44,9 @@ class ErrorLoggingMiddleware(BaseHTTPMiddleware):
             # Re-raise to let exception handlers deal with it
             raise
 
+
+
+
+
+
+

@@ -168,3 +168,9 @@ class EmailService:
 # Singleton instance
 email_service = EmailService()
 
+
+
+
+
+
+
