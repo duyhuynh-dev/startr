@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import admin, auth, diligence, feed, matches, messaging, profiles, prompts, ml, storage, realtime
+from app.api.v1.endpoints import admin, auth, diligence, feed, matches, messaging, profiles, prompts, ml, storage, realtime, verification
 
 api_router = APIRouter()
 
@@ -70,3 +70,8 @@ api_router.include_router(
     tags=["Real-time"],
 )
 
+api_router.include_router(
+    verification.router,
+    prefix="/v1/verification",
+    tags=["Verification"],
+)

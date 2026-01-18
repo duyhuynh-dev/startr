@@ -164,6 +164,49 @@ class EmailService:
         
         return self._send_email(email, subject, html_body, text_body)
 
+    def send_otp_email(self, email: str, otp_code: str) -> bool:
+        """Send email verification OTP code.
+        
+        Args:
+            email: User email address
+            otp_code: 6-digit OTP code
+            
+        Returns:
+            True if email sent successfully, False otherwise
+        """
+        subject = "Your verification code"
+        html_body = f"""
+        <html>
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0f172a; color: #f1f5f9; padding: 40px;">
+            <div style="max-width: 480px; margin: 0 auto; background-color: #1e293b; border-radius: 12px; padding: 40px; border: 1px solid #334155;">
+              <h2 style="color: #f59e0b; margin-top: 0; text-align: center;">Verify Your Email</h2>
+              <p style="color: #cbd5e1; text-align: center;">Use the code below to verify your email address:</p>
+              <div style="background-color: #0f172a; border-radius: 8px; padding: 24px; margin: 24px 0; text-align: center; border: 2px solid #f59e0b;">
+                <span style="font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #f59e0b;">{otp_code}</span>
+              </div>
+              <p style="color: #94a3b8; text-align: center; font-size: 14px;">This code expires in 10 minutes.</p>
+              <p style="color: #64748b; text-align: center; font-size: 12px; margin-top: 32px;">
+                If you didn't request this code, you can safely ignore this email.
+              </p>
+            </div>
+          </body>
+        </html>
+        """
+        
+        text_body = f"""
+        Verify Your Email
+        
+        Use the code below to verify your email address:
+        
+        {otp_code}
+        
+        This code expires in 10 minutes.
+        
+        If you didn't request this code, you can safely ignore this email.
+        """
+        
+        return self._send_email(email, subject, html_body, text_body)
+
 
 # Singleton instance
 email_service = EmailService()

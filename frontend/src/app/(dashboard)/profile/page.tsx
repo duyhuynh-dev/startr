@@ -17,9 +17,12 @@ import {
   LoadingSpinner,
   Textarea,
   LocationAutocomplete,
+  VerificationBadges,
+  VerificationLevelBadge,
 } from "@/components/ui";
 import { MarketAutocomplete } from "@/components/ui/MarketAutocomplete";
 import { profilesApi, type ProfileUpdate } from "@/lib/api/profiles";
+import { verificationApi, type VerificationStatus } from "@/lib/api/verification";
 import type { BaseProfile } from "@/lib/api/types";
 
 export default function ProfilePage() {
@@ -30,6 +33,14 @@ export default function ProfilePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  
+  // Verification state
+  const [verificationStatus, setVerificationStatus] = useState<VerificationStatus | null>(null);
+  const [isRequestingOTP, setIsRequestingOTP] = useState(false);
+  const [isVerifyingOTP, setIsVerifyingOTP] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [showOTPInput, setShowOTPInput] = useState(false);
+  const [otpMessage, setOtpMessage] = useState("");
 
   // Form state
   const [formData, setFormData] = useState<ProfileUpdate>({});
@@ -58,6 +69,14 @@ export default function ProfilePage() {
           check_size_min: data.check_size_min,
           check_size_max: data.check_size_max,
         });
+        
+        // Load verification status
+        try {
+          const verStatus = await verificationApi.getVerificationStatus();
+          setVerificationStatus(verStatus);
+        } catch (verErr) {
+          console.error("Failed to load verification status:", verErr);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load profile");
       } finally {
@@ -67,6 +86,48 @@ export default function ProfilePage() {
 
     loadProfile();
   }, [user?.profile_id]);
+  
+  const handleRequestOTP = async () => {
+    if (!user?.email) return;
+    
+    setIsRequestingOTP(true);
+    setOtpMessage("");
+    setError("");
+    
+    try {
+      const result = await verificationApi.requestEmailOTP(user.email);
+      setOtpMessage(result.message);
+      setShowOTPInput(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to send verification code");
+    } finally {
+      setIsRequestingOTP(false);
+    }
+  };
+  
+  const handleVerifyOTP = async () => {
+    if (!user?.email || !otpCode) return;
+    
+    setIsVerifyingOTP(true);
+    setError("");
+    
+    try {
+      await verificationApi.verifyEmailOTP(user.email, otpCode);
+      setSuccess("Email verified successfully!");
+      setShowOTPInput(false);
+      setOtpCode("");
+      
+      // Reload verification status
+      const verStatus = await verificationApi.getVerificationStatus();
+      setVerificationStatus(verStatus);
+      
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to verify code");
+    } finally {
+      setIsVerifyingOTP(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!user?.profile_id || !profile) return;
@@ -188,6 +249,97 @@ export default function ProfilePage() {
                     Role
                   </label>
                   <p className="text-slate-100 capitalize">{profile.role}</p>
+                </div>
+
+                {/* Verification Section */}
+                <div className="border-t border-slate-700 pt-4 mt-4">
+                  <label className="block text-sm font-semibold text-slate-100 mb-3">
+                    Verification Status
+                  </label>
+                  
+                  {verificationStatus && (
+                    <div className="space-y-3">
+                      {/* Verification Level - only show if level > 0 */}
+                      {verificationStatus.level > 0 && (
+                        <div className="flex items-center gap-3">
+                          <VerificationLevelBadge 
+                            level={verificationStatus.level} 
+                            levelName={verificationStatus.level_name}
+                            size="md"
+                          />
+                        </div>
+                      )}
+                      
+                      {/* Badges */}
+                      {verificationStatus.badges.length > 0 && (
+                        <div>
+                          <p className="text-xs text-slate-400 mb-2">Your badges:</p>
+                          <VerificationBadges 
+                            badges={verificationStatus.badges} 
+                            size="md" 
+                            showLabels 
+                          />
+                        </div>
+                      )}
+                      
+                      {/* Email Verification */}
+                      {!verificationStatus.email_verified && (
+                        <div className="bg-amber-900/20 border border-amber-500/30 rounded-lg p-4">
+                          <p className="text-amber-400 text-sm mb-3">
+                            Verify your email to unlock more features
+                          </p>
+                          
+                          {!showOTPInput ? (
+                            <Button
+                              variant="primary"
+                              onClick={handleRequestOTP}
+                              disabled={isRequestingOTP}
+                              isLoading={isRequestingOTP}
+                              className="text-sm"
+                            >
+                              Send Verification Code
+                            </Button>
+                          ) : (
+                            <div className="space-y-3">
+                              {otpMessage && (
+                                <p className="text-green-400 text-sm">{otpMessage}</p>
+                              )}
+                              <div className="flex gap-2">
+                                <Input
+                                  type="text"
+                                  value={otpCode}
+                                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                  placeholder="Enter 6-digit code"
+                                  className="flex-1 text-center tracking-widest font-mono"
+                                  maxLength={6}
+                                />
+                                <Button
+                                  variant="primary"
+                                  onClick={handleVerifyOTP}
+                                  disabled={isVerifyingOTP || otpCode.length !== 6}
+                                  isLoading={isVerifyingOTP}
+                                >
+                                  Verify
+                                </Button>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={handleRequestOTP}
+                                disabled={isRequestingOTP}
+                                className="text-sm text-amber-400 hover:text-amber-300 underline"
+                              >
+                                Resend code
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {verificationStatus.email_verified && (
+                        <p className="text-green-400 text-sm">Email verified</p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Headline - Editable */}

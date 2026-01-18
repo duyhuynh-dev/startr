@@ -93,7 +93,47 @@ class EmailVerificationConfirm(BaseModel):
     token: str
 
 
+class EmailOTPRequest(BaseModel):
+    """Request to send OTP code for email verification."""
+    email: EmailStr
+
+
+class EmailOTPVerify(BaseModel):
+    """Request to verify email with OTP code."""
+    email: EmailStr
+    code: str = Field(..., min_length=6, max_length=6, pattern="^[0-9]{6}$", description="6-digit verification code")
+
+
+class VerificationStatusResponse(BaseModel):
+    """Response with verification status details."""
+    profile_id: str
+    level: int
+    level_name: str
+    badges: list[str]
+    email_verified: bool
+    domain_verified: bool
+    oauth_verified: bool
+    manually_reviewed: bool
+    accreditation_attested: bool
+
+
+class DomainVerificationResponse(BaseModel):
+    """Response for domain verification request."""
+    verified: bool
+    message: str
+    domain: str
+    user_email_domain: Optional[str] = None
+    instructions: Optional[list[str]] = None
+
+
 class AuthMessageResponse(BaseModel):
     """Simple message response for auth endpoints."""
     message: str
+
+
+class OTPResponse(BaseModel):
+    """Response for OTP request."""
+    success: bool
+    message: str
+    expires_in: Optional[int] = None
 
