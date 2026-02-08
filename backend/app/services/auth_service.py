@@ -100,12 +100,8 @@ class AuthService:
         session.refresh(user)
         session.refresh(profile)
         
-        # Send verification email
-        try:
-            self.request_email_verification(session, user.email)
-        except Exception as e:
-            # Don't fail signup if email fails - just log
-            logger.warning(f"Failed to send verification email during signup: {e}")
+        # Note: Email verification is now done via OTP from the profile page
+        # Users can request verification code after signing up
         
         return user, profile
 

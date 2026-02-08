@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     # External API Keys (Optional - for ETL services)
     crunchbase_api_key: Optional[str] = None
     clearbit_api_key: Optional[str] = None
+    
+    # Due Diligence API Keys (Free tier available)
+    apollo_api_key: Optional[str] = None  # Apollo.io - Company enrichment
+    hunter_api_key: Optional[str] = None  # Hunter.io - Email verification
+    openai_api_key: Optional[str] = None  # OpenAI - AI-powered research
+    pdl_api_key: Optional[str] = None  # People Data Labs - Company & people enrichment
 
     # ML Configuration
     embedding_model: str = "all-MiniLM-L6-v2"  # Sentence transformer model

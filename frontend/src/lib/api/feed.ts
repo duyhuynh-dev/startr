@@ -41,7 +41,21 @@ export const feedApi = {
     max_check_size?: number;
   }): Promise<DiscoveryFeedResponse> {
     try {
-      const response = await apiClient.get<DiscoveryFeedResponse>('/feed/discover', { params });
+      // Build query string manually for array params (FastAPI expects ?stages=a&stages=b format)
+      const searchParams = new URLSearchParams();
+      searchParams.append('profile_id', params.profile_id);
+      if (params.role) searchParams.append('role', params.role);
+      if (params.limit) searchParams.append('limit', params.limit.toString());
+      if (params.cursor) searchParams.append('cursor', params.cursor);
+      if (params.location) searchParams.append('location', params.location);
+      if (params.min_check_size) searchParams.append('min_check_size', params.min_check_size.toString());
+      if (params.max_check_size) searchParams.append('max_check_size', params.max_check_size.toString());
+      
+      // Append each array item separately for FastAPI
+      params.stages?.forEach(stage => searchParams.append('stages', stage));
+      params.sectors?.forEach(sector => searchParams.append('sectors', sector));
+      
+      const response = await apiClient.get<DiscoveryFeedResponse>(`/feed/discover?${searchParams.toString()}`);
       return response.data;
     } catch (error) {
       throw new Error(getErrorMessage(error));

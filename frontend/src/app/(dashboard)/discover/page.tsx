@@ -9,6 +9,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { ProfileCard } from '@/components/features/discover/ProfileCard';
+import { DiligenceSidebar } from '@/components/features/diligence';
 import { Button, LoadingSpinner, Input, Checkbox, LocationAutocomplete } from '@/components/ui';
 import { feedApi } from '@/lib/api/feed';
 import { matchesApi } from '@/lib/api/matches';
@@ -31,6 +32,10 @@ export default function DiscoverPage() {
     standard_likes_remaining: number;
     roses_remaining: number;
   } | null>(null);
+
+  // Diligence sidebar
+  const [isDiligenceOpen, setIsDiligenceOpen] = useState(false);
+  const [diligenceProfileId, setDiligenceProfileId] = useState<string | null>(null);
 
   // Feed filters
   const [selectedStages, setSelectedStages] = useState<string[]>([]);
@@ -270,6 +275,13 @@ export default function DiscoverPage() {
 
   const currentProfile = profiles[currentIndex];
 
+  const handleViewDiligence = useCallback(() => {
+    if (currentProfile) {
+      setDiligenceProfileId(currentProfile.id);
+      setIsDiligenceOpen(true);
+    }
+  }, [currentProfile]);
+
   // Memoize filter sidebar to prevent flickering - MUST be before early returns
   const filterSidebar = useMemo(
     () => (
@@ -493,6 +505,7 @@ export default function DiscoverPage() {
                     profile={currentProfile}
                     onLike={handleLike}
                     onPass={handlePass}
+                    onViewDiligence={currentProfile.role === 'founder' ? handleViewDiligence : undefined}
                     dailyLimits={dailyLimits}
                   />
                 </motion.div>
@@ -534,6 +547,16 @@ export default function DiscoverPage() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Due Diligence Sidebar */}
+        {diligenceProfileId && (
+          <DiligenceSidebar
+            profileId={diligenceProfileId}
+            profileRole="founder"
+            isOpen={isDiligenceOpen}
+            onClose={() => setIsDiligenceOpen(false)}
+          />
+        )}
       </div>
     </ProtectedRoute>
   );
