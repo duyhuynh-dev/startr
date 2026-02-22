@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
@@ -153,7 +153,7 @@ def create_application() -> FastAPI:
             logger.warning(f"Failed to start WebSocket broadcast worker: {e}")
 
     @app.get("/healthz", tags=["health"])
-    def healthcheck() -> dict[str, str]:
+    def healthcheck(response: Response) -> dict[str, str]:
         """Health check endpoint."""
         return {"status": "ok"}
 
