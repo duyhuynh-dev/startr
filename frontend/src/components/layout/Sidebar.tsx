@@ -9,6 +9,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
+import { useWebSocketContext } from '@/contexts/WebSocketContext';
+import { notificationsApi } from '@/lib/api/notifications';
 
 const navItems = [
   {
@@ -39,6 +41,20 @@ const navItems = [
     ),
   },
   {
+    href: '/notifications',
+    label: 'Notifications',
+    icon: (
+      <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={1.5}
+          d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0a3 3 0 11-6 0m6 0H9"
+        />
+      </svg>
+    ),
+  },
+  {
     href: '/profile',
     label: 'Profile',
     icon: (
@@ -51,10 +67,12 @@ const navItems = [
 
 export function Sidebar() {
   const { user, logout } = useAuth();
+  const { subscribeToNotifications } = useWebSocketContext();
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
   const initial = (user?.full_name || user?.email)?.trim().charAt(0).toUpperCase() ?? '?';
@@ -74,6 +92,34 @@ export function Sidebar() {
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    let mounted = true;
+    let interval: NodeJS.Timeout | null = null;
+    let unsubscribe: (() => void) | null = null;
+
+    const fetchUnread = async () => {
+      if (!user?.profile_id) return;
+      const count = await notificationsApi.unreadCount();
+      if (mounted) setUnreadNotifications(count);
+    };
+
+    fetchUnread();
+
+    // Poll (cheap + resilient)
+    interval = setInterval(fetchUnread, 30_000);
+
+    // WS hint: refresh on events
+    unsubscribe = subscribeToNotifications(() => {
+      fetchUnread();
+    });
+
+    return () => {
+      mounted = false;
+      if (interval) clearInterval(interval);
+      unsubscribe?.();
+    };
+  }, [subscribeToNotifications, user?.profile_id]);
 
   const isActive = (href: string) => pathname === href || (href === '/discover' && pathname === '/');
 
@@ -162,7 +208,7 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+              className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                 active
                   ? 'bg-slate-900 text-white'
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
@@ -170,7 +216,19 @@ export function Sidebar() {
               title={collapsed ? item.label : undefined}
             >
               <span className={active ? 'text-white' : 'text-slate-500'}>{item.icon}</span>
-              {!collapsed && item.label}
+              {!collapsed && (
+                <span className="flex items-center gap-2 min-w-0">
+                  <span className="truncate">{item.label}</span>
+                  {item.href === '/notifications' && unreadNotifications > 0 && (
+                    <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-red-600 text-white text-[11px] font-semibold leading-none">
+                      {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                    </span>
+                  )}
+                </span>
+              )}
+              {collapsed && item.href === '/notifications' && unreadNotifications > 0 && (
+                <span className="absolute ml-5 -mt-2 inline-flex w-2 h-2 rounded-full bg-red-600" />
+              )}
             </Link>
           );
         })}

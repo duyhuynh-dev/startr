@@ -8,7 +8,16 @@ from alembic import context
 
 # Import all models so Alembic can detect them
 from app.core.config import settings
-from app.models import Profile, Like, Match, Message, PromptTemplate, StartupOfMonth, User  # noqa: F401
+from app.models import (  # noqa: F401
+    Like,
+    Match,
+    Message,
+    Notification,
+    Profile,
+    PromptTemplate,
+    StartupOfMonth,
+    User,
+)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

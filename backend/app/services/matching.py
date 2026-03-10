@@ -13,6 +13,7 @@ from app.core.redis import redis_client
 from app.models.match import DailyLimit, Like, Match, Pass, ProfileView
 from app.models.profile import Profile
 from app.schemas.match import LikePayload, MatchRecord
+from app.services.notifications import notifications_service
 
 
 class MatchingService:
@@ -108,6 +109,34 @@ class MatchingService:
         if reciprocal:
             try:
                 match = self._create_match(session, payload.sender_id, payload.recipient_id, payload.note)
+                # Create in-app notifications for both users (best-effort)
+                try:
+                    notifications_service.create_notification(
+                        session,
+                        recipient_id=payload.sender_id,
+                        actor_id=payload.recipient_id,
+                        match_id=match.id,
+                        type="new_match",
+                        title="It’s a match",
+                        body=f"You matched with {recipient_profile.full_name}.",
+                        href=f"/messages/{match.id}",
+                    )
+                    notifications_service.create_notification(
+                        session,
+                        recipient_id=payload.recipient_id,
+                        actor_id=payload.sender_id,
+                        match_id=match.id,
+                        type="new_match",
+                        title="It’s a match",
+                        body=f"You matched with {sender_profile.full_name}.",
+                        href=f"/messages/{match.id}",
+                    )
+                except Exception:
+                    import logging
+
+                    logging.getLogger(__name__).warning(
+                        "Failed to create match notifications (non-critical)", exc_info=True
+                    )
                 # Invalidate feed caches for both users after match
                 cache_service.invalidate_feeds_for_profile(payload.sender_id)
                 cache_service.invalidate_feeds_for_profile(payload.recipient_id)

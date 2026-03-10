@@ -133,8 +133,33 @@ export interface Message {
   sender_id: string;
   content: string;
   attachment_url?: string;
+  delivered_at?: string;
   read_at?: string;
   created_at: string;
+}
+
+// Notification Types
+export interface Notification {
+  id: string;
+  recipient_id: string;
+  actor_id?: string | null;
+  match_id?: string | null;
+  message_id?: string | null;
+  type: string;
+  title: string;
+  body?: string | null;
+  href?: string | null;
+  read_at?: string | null;
+  created_at: string;
+}
+
+export interface NotificationsListResponse {
+  items: Notification[];
+  next_cursor?: string | null;
+}
+
+export interface UnreadCountResponse {
+  unread_count: number;
 }
 
 export interface MessageCreate {

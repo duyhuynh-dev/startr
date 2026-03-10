@@ -49,6 +49,7 @@ class MessagingService:
             sender_id=message.sender_id,
             content=message.content,
             attachment_url=message.attachment_url,
+            delivered_at=message.delivered_at,
             read_at=message.read_at,
             created_at=message.created_at,
         )
@@ -95,11 +96,73 @@ class MessagingService:
                 sender_id=msg.sender_id,
                 content=msg.content,
                 attachment_url=msg.attachment_url,
+                delivered_at=msg.delivered_at,
                 read_at=msg.read_at,
                 created_at=msg.created_at,
             )
             for msg in results
         ]
+
+    def mark_message_delivered(self, session: Session, message_id: str, recipient_id: str) -> MessageResponse | None:
+        """Mark a message as delivered for the recipient (idempotent)."""
+        message = session.get(Message, message_id)
+        if not message:
+            return None
+
+        match = session.get(Match, message.match_id)
+        if not match or recipient_id not in [match.founder_id, match.investor_id]:
+            raise ValueError("User is not part of this match")
+        if message.sender_id == recipient_id:
+            raise ValueError("Cannot mark your own message as delivered")
+
+        if message.delivered_at is None:
+            message.delivered_at = datetime.utcnow()
+            session.add(message)
+            session.commit()
+            session.refresh(message)
+
+        return MessageResponse(
+            id=message.id,
+            match_id=message.match_id,
+            sender_id=message.sender_id,
+            content=message.content,
+            attachment_url=message.attachment_url,
+            delivered_at=message.delivered_at,
+            read_at=message.read_at,
+            created_at=message.created_at,
+        )
+
+    def mark_message_read(self, session: Session, message_id: str, reader_id: str) -> MessageResponse | None:
+        """Mark a message as read for the reader (idempotent)."""
+        message = session.get(Message, message_id)
+        if not message:
+            return None
+
+        match = session.get(Match, message.match_id)
+        if not match or reader_id not in [match.founder_id, match.investor_id]:
+            raise ValueError("User is not part of this match")
+        if message.sender_id == reader_id:
+            raise ValueError("Cannot mark your own message as read")
+
+        now = datetime.utcnow()
+        if message.delivered_at is None:
+            message.delivered_at = now
+        if message.read_at is None:
+            message.read_at = now
+            session.add(message)
+            session.commit()
+            session.refresh(message)
+
+        return MessageResponse(
+            id=message.id,
+            match_id=message.match_id,
+            sender_id=message.sender_id,
+            content=message.content,
+            attachment_url=message.attachment_url,
+            delivered_at=message.delivered_at,
+            read_at=message.read_at,
+            created_at=message.created_at,
+        )
 
     def list_conversations(
         self, session: Session, profile_id: str

@@ -8,9 +8,11 @@ from sqlmodel import Session
 from app.core.dependencies import get_current_user_profile
 from app.core.exceptions import ValidationError
 from app.db.session import get_session
+from app.models.match import Match
 from app.models.profile import Profile
 from app.schemas.message import ConversationThread, MessageCreate, MessageResponse
 from app.services.messaging import messaging_service
+from app.services.notifications import notifications_service
 
 router = APIRouter()
 
@@ -88,6 +90,30 @@ async def create_message(
             attachment_url=payload.attachment_url,
         )
         message_response = messaging_service.create_message(session, authenticated_payload)
+
+        # Create an in-app notification for the other party (non-critical)
+        try:
+            match = session.get(Match, message_response.match_id)
+            if match:
+                recipient_id = match.investor_id if profile.id == match.founder_id else match.founder_id
+                preview = (message_response.content or "").strip()
+                if len(preview) > 120:
+                    preview = preview[:117] + "..."
+                notifications_service.create_notification(
+                    session,
+                    recipient_id=recipient_id,
+                    actor_id=profile.id,
+                    match_id=message_response.match_id,
+                    message_id=message_response.id,
+                    type="new_message",
+                    title="New message",
+                    body=preview or None,
+                    href=f"/messages/{message_response.match_id}",
+                )
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).warning("Failed to create message notification (non-critical)", exc_info=True)
         
         # Broadcast via WebSocket in background (non-blocking)
         async def broadcast_message():
@@ -122,6 +148,18 @@ async def create_message(
                         message_response.match_id,
                         broadcast_session
                     )
+
+                # Also emit a lightweight notification event to the recipient (best-effort)
+                try:
+                    match = broadcast_session.get(Match, message_response.match_id)
+                    if match:
+                        recipient_id = match.investor_id if message_response.sender_id == match.founder_id else match.founder_id
+                        await connection_manager.send_personal_message(
+                            {"type": "notification", "kind": "new_message", "match_id": message_response.match_id},
+                            recipient_id,
+                        )
+                except Exception:
+                    logger.debug("Notification WS emit failed (non-critical)", exc_info=True)
                 logger.info(f"✅ Message broadcasted via WebSocket for match {message_response.match_id}: {message_dict}")
             except Exception as e:
                 import logging

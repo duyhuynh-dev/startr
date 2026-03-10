@@ -17,6 +17,7 @@ class MessageResponse(BaseModel):
     sender_id: str
     content: str
     attachment_url: Optional[str] = None
+    delivered_at: Optional[datetime] = None
     read_at: Optional[datetime] = None
     created_at: datetime
 

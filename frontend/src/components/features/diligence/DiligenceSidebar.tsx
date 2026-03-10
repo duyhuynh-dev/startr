@@ -4,7 +4,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { diligenceApi, type DiligenceSummary, type Metric, type RiskFlag, type ExternalData } from '@/lib/api/diligence';
 import { LoadingSpinner } from '@/components/ui';
@@ -325,7 +325,7 @@ function MetricRow({
   getTrendIcon,
 }: {
   metric: Metric;
-  getTrendIcon: (trend: 'up' | 'flat' | 'down') => JSX.Element;
+  getTrendIcon: (trend: 'up' | 'flat' | 'down') => ReactNode;
 }) {
   return (
     <div className="flex items-center justify-between bg-slate-800/50 rounded-lg px-4 py-3 border border-slate-700/50">

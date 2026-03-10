@@ -46,9 +46,24 @@ export interface NewMessagePayload {
     sender_id: string;
     content: string;
     attachment_url?: string;
+    delivered_at?: string;
     read_at?: string;
     created_at: string;
   };
+}
+
+export interface MessageDeliveredPayload {
+  type: 'message_delivered';
+  match_id: string;
+  message_id: string;
+  delivered_at: string | null;
+}
+
+export interface MessageReadPayload {
+  type: 'message_read';
+  match_id: string;
+  message_id: string;
+  read_at: string | null;
 }
 
 export interface TypingIndicatorPayload {
@@ -70,11 +85,20 @@ export interface OnlineStatusPayload {
   is_online: boolean;
 }
 
+export interface NotificationEventPayload {
+  type: 'notification';
+  kind: string;
+  match_id?: string;
+}
+
 export type MessagingWebSocketMessage =
   | NewMessagePayload
+  | MessageDeliveredPayload
+  | MessageReadPayload
   | TypingIndicatorPayload
   | ConnectedPayload
   | OnlineStatusPayload
+  | NotificationEventPayload
   | { type: 'error'; message: string }
   | { type: 'pong'; timestamp: string };
 
@@ -142,6 +166,12 @@ export class MessagingWebSocketClient {
         console.log('Emitting new_message event:', message.message);
         this.emit('new_message', message.message);
         break;
+      case 'message_delivered':
+        this.emit('message_delivered', message);
+        break;
+      case 'message_read':
+        this.emit('message_read', message);
+        break;
       case 'typing':
         this.emit('typing', {
           matchId: message.match_id,
@@ -157,6 +187,9 @@ export class MessagingWebSocketClient {
         break;
       case 'connected':
         this.emit('connected', {});
+        break;
+      case 'notification':
+        this.emit('notification', message);
         break;
       case 'error':
         this.emit('error', { error: message.message });
@@ -207,6 +240,18 @@ export class MessagingWebSocketClient {
           is_typing: isTyping,
         })
       );
+    }
+  }
+
+  sendDelivered(messageId: string) {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: 'delivered', message_id: messageId }));
+    }
+  }
+
+  sendMarkRead(messageId: string) {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: 'mark_read', message_id: messageId }));
     }
   }
 
