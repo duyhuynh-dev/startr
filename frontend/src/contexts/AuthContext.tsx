@@ -13,8 +13,9 @@ interface AuthContextType {
   user: UserResponse | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, role: 'investor' | 'founder', fullName: string) => Promise<void>;
+  login: (email: string, password: string, turnstileToken?: string) => Promise<void>;
+  loginWithTokens: (accessToken: string, refreshToken: string) => Promise<void>;
+  signup: (email: string, password: string, role: 'investor' | 'founder', fullName: string, turnstileToken?: string) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -44,8 +45,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loadUser();
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const tokenResponse: TokenResponse = await authApi.login({ email, password });
+  const login = useCallback(async (email: string, password: string, turnstileToken?: string) => {
+    const tokenResponse: TokenResponse = await authApi.login({ email, password, turnstile_token: turnstileToken });
     
     // Store tokens
     if (typeof window !== 'undefined') {
@@ -58,17 +59,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(userData);
   }, []);
 
+  const loginWithTokens = useCallback(async (accessToken: string, refreshToken: string) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('access_token', accessToken);
+      localStorage.setItem('refresh_token', refreshToken);
+    }
+    const userData = await authApi.getCurrentUser();
+    setUser(userData);
+  }, []);
+
   const signup = useCallback(async (
     email: string,
     password: string,
     role: 'investor' | 'founder',
-    fullName: string
+    fullName: string,
+    turnstileToken?: string
   ) => {
-    const userData = await authApi.signUp({ email, password, role, full_name: fullName });
+    const userData = await authApi.signUp({ email, password, role, full_name: fullName, turnstile_token: turnstileToken });
     setUser(userData);
     
-    // After signup, login to get tokens
-    const tokenResponse: TokenResponse = await authApi.login({ email, password });
+    const tokenResponse: TokenResponse = await authApi.login({ email, password, turnstile_token: turnstileToken });
     if (typeof window !== 'undefined') {
       localStorage.setItem('access_token', tokenResponse.access_token);
       localStorage.setItem('refresh_token', tokenResponse.refresh_token);
@@ -97,6 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading,
     isAuthenticated: !!user,
     login,
+    loginWithTokens,
     signup,
     logout,
     refreshUser,

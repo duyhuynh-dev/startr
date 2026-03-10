@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlmodel import Session
 
 from app.core.config import settings
 from app.core.dependencies import get_current_user
+from app.core.turnstile import verify_turnstile
 from app.core.exceptions import ConflictError, UnauthorizedError, ValidationError
 from app.db.session import get_session
 from app.models.user import User
@@ -30,6 +32,16 @@ from app.services.auth_service import auth_service
 from app.services.oauth_service import oauth_service
 
 router = APIRouter()
+
+
+@router.get(
+    "/turnstile-site-key",
+    summary="Get Turnstile site key",
+    description="Returns the Cloudflare Turnstile site key for client-side widget. Public, no auth required.",
+)
+def get_turnstile_site_key() -> dict:
+    """Return Turnstile site key for frontend widget."""
+    return {"site_key": settings.turnstile_site_key or ""}
 
 
 @router.post(
@@ -72,11 +84,14 @@ router = APIRouter()
     ```
     """,
 )
-def signup(
+async def signup(
     request: SignUpRequest,
+    http_request: Request,
     session: Session = Depends(get_session),
 ) -> UserResponse:
     """Create a new user account."""
+    if not await verify_turnstile(request.turnstile_token, http_request.client.host if http_request.client else None):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Verification failed. Please try again.")
     try:
         user, profile = auth_service.signup(
             session=session,
@@ -90,6 +105,7 @@ def signup(
             id=user.id,
             email=user.email,
             profile_id=user.profile_id,
+            full_name=request.full_name,
             is_active=user.is_active,
             is_verified=user.is_verified,
             is_admin=user.is_admin,
@@ -131,11 +147,14 @@ def signup(
     Use `refresh_token` to get a new access token when it expires.
     """,
 )
-def login(
+async def login(
     request: LoginRequest,
+    http_request: Request,
     session: Session = Depends(get_session),
 ) -> TokenResponse:
     """Login with email and password."""
+    if not await verify_turnstile(request.turnstile_token, http_request.client.host if http_request.client else None):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Verification failed. Please try again.")
     try:
         user, access_token, refresh_token = auth_service.login(
             session=session,
@@ -232,12 +251,24 @@ def refresh_token(
 )
 def get_current_user_endpoint(
     user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
 ) -> UserResponse:
     """Get current user information."""
+    full_name = None
+    avatar_url = None
+    if user.profile_id:
+        from app.models.profile import Profile
+        profile = session.get(Profile, user.profile_id)
+        if profile:
+            full_name = profile.full_name
+            avatar_url = profile.avatar_url
+
     return UserResponse(
         id=user.id,
         email=user.email,
         profile_id=user.profile_id,
+        full_name=full_name,
+        avatar_url=avatar_url,
         is_active=user.is_active,
         is_verified=user.is_verified,
         is_admin=user.is_admin,
@@ -273,18 +304,21 @@ def get_current_user_endpoint(
     **Note:** Requires API keys to be configured. See `.env` for OAuth settings.
     """,
 )
-def oauth_authorize(provider: str, request: Request):
+def oauth_authorize(
+    provider: str,
+    request: Request,
+    redirect_uri: Optional[str] = None,
+):
     """Get OAuth authorization URL."""
-    # Firebase doesn't use OAuth authorization flow
     if provider.lower() == "firebase":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Firebase uses ID tokens directly. Use the callback endpoint with an id_token.",
         )
     
-    # Get base URL from request
-    base_url = str(request.base_url).rstrip("/")
-    redirect_uri = f"{base_url}/api/v1/auth/oauth/{provider}/callback"
+    if not redirect_uri:
+        base_url = str(request.base_url).rstrip("/")
+        redirect_uri = f"{base_url}/api/v1/auth/oauth/{provider}/callback"
     
     try:
         if provider.lower() == "linkedin":
@@ -368,16 +402,17 @@ async def oauth_callback(
                 id_token=request.id_token,
             )
         else:
-            # LinkedIn and Google use OAuth code flow
             if not request.code:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"{provider} requires code in request body",
                 )
             
-            # Get base URL for redirect URI
-            base_url = str(http_request.base_url).rstrip("/")
-            redirect_uri = f"{base_url}/api/v1/auth/oauth/{provider}/callback"
+            if request.redirect_uri:
+                redirect_uri = request.redirect_uri
+            else:
+                base_url = str(http_request.base_url).rstrip("/")
+                redirect_uri = f"{base_url}/api/v1/auth/oauth/{provider}/callback"
             
             if provider_lower == "linkedin":
                 user, access_token, refresh_token = await oauth_service.handle_linkedin_callback(
@@ -414,6 +449,11 @@ async def oauth_callback(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"OAuth error: {e}",
         )
 
 

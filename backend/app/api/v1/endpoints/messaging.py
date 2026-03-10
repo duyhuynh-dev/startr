@@ -5,8 +5,10 @@ from typing import List
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
 from sqlmodel import Session
 
+from app.core.dependencies import get_current_user_profile
 from app.core.exceptions import ValidationError
 from app.db.session import get_session
+from app.models.profile import Profile
 from app.schemas.message import ConversationThread, MessageCreate, MessageResponse
 from app.services.messaging import messaging_service
 
@@ -21,16 +23,17 @@ router = APIRouter()
     description="""
     Send a message in a match thread. Both users in a match can send messages to each other.
     
+    **Authentication:** Bearer token required. The sender is the authenticated user's profile.
+
     **Requirements:**
     - Sender must be part of the match (founder or investor)
     - Match status must be "active" or "pending"
     - Automatically updates match's last_message_preview
-    
+
     **Example Request:**
     ```json
     {
         "match_id": "123e4567-e89b-12d3-a456-426614174000",
-        "sender_id": "123e4567-e89b-12d3-a456-426614174001",
         "content": "Hi! I'm interested in learning more.",
         "attachment_url": null
     }
@@ -67,16 +70,24 @@ router = APIRouter()
             }
         },
         400: {"description": "Invalid message (e.g., not part of the match)"},
+        401: {"description": "Authentication required"},
     },
 )
 async def create_message(
-    payload: MessageCreate, 
-    background_tasks: BackgroundTasks,
-    session: Session = Depends(get_session)
+    payload: MessageCreate,
+    profile: Profile = Depends(get_current_user_profile),
+    background_tasks: BackgroundTasks = None,
+    session: Session = Depends(get_session),
 ) -> MessageResponse:
-    """Send a message in a match thread."""
+    """Send a message in a match thread. Sender is the authenticated user."""
     try:
-        message_response = messaging_service.create_message(session, payload)
+        authenticated_payload = MessageCreate(
+            match_id=payload.match_id,
+            sender_id=profile.id,
+            content=payload.content,
+            attachment_url=payload.attachment_url,
+        )
+        message_response = messaging_service.create_message(session, authenticated_payload)
         
         # Broadcast via WebSocket in background (non-blocking)
         async def broadcast_message():
@@ -118,7 +129,8 @@ async def create_message(
                 logger.warning(f"WebSocket broadcast failed (non-critical): {e}", exc_info=True)
         
         # Add broadcast task to background
-        background_tasks.add_task(broadcast_message)
+        if background_tasks:
+            background_tasks.add_task(broadcast_message)
         import logging
         logger = logging.getLogger(__name__)
         logger.info(f"📤 Message created, queued for broadcast: match={message_response.match_id}, sender={message_response.sender_id}")
@@ -136,9 +148,12 @@ async def create_message(
     Get all conversation threads for a user with last message preview and unread counts. 
     Ordered by most recent activity (last message timestamp).
     
+    **Authentication:** Bearer token required.
+
     **Example Request:**
     ```
-    GET /api/v1/messages?profile_id=user-id
+    GET /api/v1/messages
+    Authorization: Bearer <token>
     ```
     
     **Example Response:**
@@ -179,14 +194,15 @@ async def create_message(
                 }
             }
         },
+        401: {"description": "Authentication required"},
     },
 )
 def list_conversations(
-    profile_id: str = Query(..., description="ID of the user requesting conversations"),
+    profile: Profile = Depends(get_current_user_profile),
     session: Session = Depends(get_session),
 ) -> List[ConversationThread]:
-    """Get all conversation threads for a user with last message preview and unread counts."""
-    return messaging_service.list_conversations(session, profile_id)
+    """Get all conversation threads for the authenticated user."""
+    return messaging_service.list_conversations(session, profile.id)
 
 
 @router.get(
@@ -198,9 +214,12 @@ def list_conversations(
     
     Automatically marks messages as read for the requesting user (only messages sent by the other party).
     
+    **Authentication:** Bearer token required.
+
     **Example Request:**
     ```
-    GET /api/v1/messages/{match_id}?profile_id=user-id&limit=50
+    GET /api/v1/messages/{match_id}?limit=50
+    Authorization: Bearer <token>
     ```
     
     **Example Response:**
@@ -244,16 +263,17 @@ def list_conversations(
             }
         },
         400: {"description": "Invalid request (e.g., not part of the match)"},
+        401: {"description": "Authentication required"},
     },
 )
 def list_messages(
     match_id: str,
-    profile_id: str = Query(..., description="ID of the user requesting messages"),
+    profile: Profile = Depends(get_current_user_profile),
     limit: int = Query(50, ge=1, le=100, description="Maximum number of messages to return"),
     session: Session = Depends(get_session),
 ) -> List[MessageResponse]:
     """Get all messages in a match thread. Automatically marks messages as read."""
     try:
-        return messaging_service.list_messages(session, match_id, profile_id, limit)
+        return messaging_service.list_messages(session, match_id, profile.id, limit)
     except ValueError as e:
         raise ValidationError(message=str(e))

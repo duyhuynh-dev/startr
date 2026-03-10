@@ -124,8 +124,7 @@ class AuthService:
         if not user:
             raise UnauthorizedError("Invalid email or password")
         
-        # Verify password
-        if not verify_password(password, user.password_hash):
+        if not user.password_hash or not verify_password(password, user.password_hash):
             raise UnauthorizedError("Invalid email or password")
         
         # Check if user is active

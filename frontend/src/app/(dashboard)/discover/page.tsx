@@ -1,23 +1,24 @@
 /**
- * Discovery Feed - Browse and match with profiles
+ * Discovery Feed – Contra-inspired dashboard with welcome header, 
+ * profile card feed, and right sidebar for stats/filters
  */
 
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { ProfileCard } from '@/components/features/discover/ProfileCard';
 import { DiligenceSidebar } from '@/components/features/diligence';
-import { Button, LoadingSpinner, Input, Checkbox, LocationAutocomplete } from '@/components/ui';
+import { LocationAutocomplete } from '@/components/ui';
 import { feedApi } from '@/lib/api/feed';
 import { matchesApi } from '@/lib/api/matches';
 import type { ProfileCard as ProfileCardType } from '@/lib/api/feed';
-import { slideLeft, slideRight, scaleIn } from '@/lib/animations';
+import Link from 'next/link';
 
 const STAGE_OPTIONS = ['Pre-Seed', 'Seed', 'Series A', 'Series B', 'Growth'];
-const SECTOR_OPTIONS = ['SaaS', 'Fintech', 'Climate', 'Healthcare', 'Consumer', 'Deep Tech'];
+const SECTOR_OPTIONS = ['SaaS', 'Fintech', 'AI/ML', 'Healthcare', 'Consumer', 'Climate', 'Enterprise', 'Web3', 'Deep Tech'];
 
 export default function DiscoverPage() {
   const { user } = useAuth();
@@ -33,21 +34,20 @@ export default function DiscoverPage() {
     roses_remaining: number;
   } | null>(null);
 
-  // Diligence sidebar
   const [isDiligenceOpen, setIsDiligenceOpen] = useState(false);
   const [diligenceProfileId, setDiligenceProfileId] = useState<string | null>(null);
 
-  // Feed filters
   const [selectedStages, setSelectedStages] = useState<string[]>([]);
   const [selectedSectors, setSelectedSectors] = useState<string[]>([]);
   const [locationFilter, setLocationFilter] = useState('');
-  const [minCheckSize, setMinCheckSize] = useState<string>('');
-  const [maxCheckSize, setMaxCheckSize] = useState<string>('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const displayName = user?.email?.split('@')[0] ?? 'there';
 
   const loadDailyLimits = async () => {
     if (!user?.profile_id) return;
     try {
-      const limits = await matchesApi.getDailyLimits(user.profile_id);
+      const limits = await matchesApi.getDailyLimits();
       setDailyLimits({
         standard_likes_remaining: limits.standard_likes_remaining,
         roses_remaining: limits.roses_remaining,
@@ -63,25 +63,19 @@ export default function DiscoverPage() {
       setIsLoading(false);
       return;
     }
-
     setIsLoading(true);
     setError('');
 
     try {
       const filterParams = {
-        profile_id: user.profile_id,
         limit: 20,
         cursor: overrideCursor !== undefined ? overrideCursor : cursor,
         ...(selectedStages.length > 0 && { stages: selectedStages }),
         ...(selectedSectors.length > 0 && { sectors: selectedSectors }),
         ...(locationFilter.trim() && { location: locationFilter.trim() }),
-        ...(minCheckSize.trim() !== '' && { min_check_size: Number.parseInt(minCheckSize, 10) || undefined }),
-        ...(maxCheckSize.trim() !== '' && { max_check_size: Number.parseInt(maxCheckSize, 10) || undefined }),
       };
-      
       const response = await feedApi.getDiscoveryFeed(filterParams);
 
-      // If we got empty results and no more, clear profiles to show "All Caught Up!"
       if (response.profiles.length === 0 && !response.has_more) {
         setProfiles([]);
         setHasMore(false);
@@ -102,41 +96,29 @@ export default function DiscoverPage() {
   useEffect(() => {
     loadProfiles();
     loadDailyLimits();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.profile_id]);
 
-  const handleApplyFilters = useCallback(async () => {
-    // Reset pagination first
+  const fetchWithFilters = useCallback(async (
+    stages: string[],
+    sectors: string[],
+    location: string,
+  ) => {
+    if (!user?.profile_id) return;
     setIsApplyingFilters(true);
-    setCursor(undefined);
-    setCurrentIndex(0);
-    
-    // Wait a moment to ensure state is settled, then reload with current filter values
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    
-    if (!user?.profile_id) {
-      setError('Please complete your profile first');
-      setIsApplyingFilters(false);
-      return;
-    }
-
     setIsLoading(true);
     setError('');
+    setCursor(undefined);
+    setCurrentIndex(0);
 
     try {
-      // Explicitly use current filter state values
       const filterParams = {
-        profile_id: user.profile_id,
         limit: 20,
-        cursor: undefined, // Reset to beginning when applying filters
-        ...(selectedStages.length > 0 && { stages: selectedStages }),
-        ...(selectedSectors.length > 0 && { sectors: selectedSectors }),
-        ...(locationFilter.trim() && { location: locationFilter.trim() }),
-        ...(minCheckSize.trim() !== '' && { min_check_size: Number.parseInt(minCheckSize, 10) || undefined }),
-        ...(maxCheckSize.trim() !== '' && { max_check_size: Number.parseInt(maxCheckSize, 10) || undefined }),
+        cursor: undefined as string | undefined,
+        ...(stages.length > 0 && { stages }),
+        ...(sectors.length > 0 && { sectors }),
+        ...(location.trim() && { location: location.trim() }),
       };
-      
-      console.log('Applying filters:', filterParams);
-      
       const response = await feedApi.getDiscoveryFeed(filterParams);
 
       if (response.profiles.length === 0 && !response.has_more) {
@@ -154,33 +136,26 @@ export default function DiscoverPage() {
     } finally {
       setIsLoading(false);
       setIsApplyingFilters(false);
+      setFiltersOpen(false);
     }
-  }, [user?.profile_id, selectedStages, selectedSectors, locationFilter, minCheckSize, maxCheckSize]);
+  }, [user?.profile_id]);
 
-  const toggleStage = useCallback((stage: string) => {
-    setSelectedStages((prev) =>
-      prev.includes(stage) ? prev.filter((s) => s !== stage) : [...prev, stage],
-    );
-  }, []);
+  const handleApplyFilters = useCallback(() => {
+    fetchWithFilters(selectedStages, selectedSectors, locationFilter);
+  }, [fetchWithFilters, selectedStages, selectedSectors, locationFilter]);
 
-  const toggleSector = useCallback((sector: string) => {
-    setSelectedSectors((prev) =>
-      prev.includes(sector) ? prev.filter((s) => s !== sector) : [...prev, sector],
-    );
-  }, []);
+  const handleClearFilters = useCallback(() => {
+    setSelectedStages([]);
+    setSelectedSectors([]);
+    setLocationFilter('');
+    fetchWithFilters([], [], '');
+  }, [fetchWithFilters]);
 
   const handleLike = async (likeType: 'standard' | 'rose' = 'standard', note?: string, promptId?: string) => {
     if (!user?.profile_id || !currentProfile || isLoading) return;
+    if (dailyLimits && dailyLimits.standard_likes_remaining <= 0) return;
 
-    // Check if user has likes remaining
-    if (dailyLimits && dailyLimits.standard_likes_remaining <= 0) {
-      alert('You\'ve used all your likes for today! Come back tomorrow.');
-      return;
-    }
-
-    // Check if this is the last profile
     const isLastProfile = currentIndex === profiles.length - 1 && !hasMore;
-
     setIsLoading(true);
 
     try {
@@ -193,82 +168,54 @@ export default function DiscoverPage() {
       });
 
       if (response.status === 'matched') {
-        // Match created! Show success and suggest checking Likes/Messages
-        alert('It\'s a match! 🎉\n\nYou can now message them in the Messages or Likes page.');
-        // Optionally redirect to messages after a short delay
-        // setTimeout(() => router.push('/messages'), 2000);
+        alert('It\'s a match! You can now message them.');
       }
 
-      // Reload daily limits
       await loadDailyLimits();
 
-      // If this is the last profile, remove it to show "All Caught Up!"
       if (isLastProfile) {
         setProfiles((prev) => prev.filter((_, idx) => idx !== currentIndex));
-        setIsLoading(false);
       } else {
-        // Move to next profile (which will handle loading more if needed)
         moveToNextProfile();
-        setIsLoading(false);
       }
     } catch (err) {
-      setIsLoading(false);
       const errorMessage = err instanceof Error ? err.message : 'Failed to send like';
       alert(errorMessage);
-      console.error('Failed to like:', err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handlePass = async () => {
     if (!user?.profile_id || !currentProfile || isLoading) return;
-
-    // Check if this is the last profile
     const isLastProfile = currentIndex === profiles.length - 1 && !hasMore;
-
     setIsLoading(true);
 
     try {
-      // Call backend to record pass (prevents showing again for 30 days)
       await matchesApi.passOnProfile({
         user_id: user.profile_id,
         passed_profile_id: currentProfile.id,
       });
-
-      // If this is the last profile, remove it to show "All Caught Up!"
-      if (isLastProfile) {
-        setProfiles((prev) => prev.filter((_, idx) => idx !== currentIndex));
-        setIsLoading(false);
-      } else {
-        // Move to next profile (which will handle loading more if needed)
-        moveToNextProfile();
-        setIsLoading(false);
-      }
-    } catch (err) {
-      setIsLoading(false);
-      console.error('Failed to pass:', err);
-      // Still move to next even if pass API fails
-      if (isLastProfile) {
-        setProfiles((prev) => prev.filter((_, idx) => idx !== currentIndex));
-      } else {
-        moveToNextProfile();
-      }
+    } catch {
+      // still advance
     }
+
+    if (isLastProfile) {
+      setProfiles((prev) => prev.filter((_, idx) => idx !== currentIndex));
+    } else {
+      moveToNextProfile();
+    }
+    setIsLoading(false);
   };
 
   const moveToNextProfile = () => {
-    // If we're not at the last profile, just move to next
     if (currentIndex < profiles.length - 1) {
       setCurrentIndex(currentIndex + 1);
       return;
     }
-    
-    // We're at the last profile - check if there's more to load
     if (hasMore) {
-      // Try to load more profiles
       loadProfiles();
     } else {
-      // No more profiles - we'll automatically show "All Caught Up!" when currentProfile becomes undefined
-      // Remove the current profile from the list so currentProfile becomes undefined
       setProfiles((prev) => prev.filter((_, idx) => idx !== currentIndex));
     }
   };
@@ -282,271 +229,313 @@ export default function DiscoverPage() {
     }
   }, [currentProfile]);
 
-  // Memoize filter sidebar to prevent flickering - MUST be before early returns
-  const filterSidebar = useMemo(
-    () => (
-      <motion.div
-        className="mb-8 lg:mb-0 lg:w-72"
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.3, ease: 'easeOut' }}
-      >
-        <motion.div
-          className="bg-slate-800 border border-slate-700 rounded-xl p-4 shadow-lg"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1, duration: 0.3 }}
-        >
-          <h2 className="text-lg font-semibold text-slate-100 mb-2">Filters</h2>
-          <p className="text-xs text-slate-100 mb-4">
-            Refine your feed by stage, sector, geography, and check size.
-          </p>
-
-          {/* Stages */}
-          <div className="mb-4">
-            <h3 className="text-xs font-semibold text-slate-100 uppercase tracking-wide mb-2">
-              Stages
-            </h3>
-            <div className="space-y-1">
-              {STAGE_OPTIONS.map((stage) => (
-                <Checkbox
-                  key={stage}
-                  label={stage}
-                  checked={selectedStages.includes(stage)}
-                  onChange={() => toggleStage(stage)}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Sectors */}
-          <div className="mb-4">
-            <h3 className="text-xs font-semibold text-slate-100 uppercase tracking-wide mb-2">
-              Sectors
-            </h3>
-            <div className="space-y-1">
-              {SECTOR_OPTIONS.map((sector) => (
-                <Checkbox
-                  key={sector}
-                  label={sector}
-                  checked={selectedSectors.includes(sector)}
-                  onChange={() => toggleSector(sector)}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Location */}
-          <div className="mb-4">
-            <LocationAutocomplete
-              label="Location"
-              placeholder="Start typing a location (e.g., San Francisco)..."
-              value={locationFilter}
-              onChange={(value) => setLocationFilter(value)}
-            />
-          </div>
-
-          {/* Check size */}
-          <div className="mb-4">
-            <h3 className="text-xs font-semibold text-slate-100 uppercase tracking-wide mb-2">
-              Check size (USD)
-            </h3>
-            <div className="flex gap-2">
-              <Input
-                placeholder="Min"
-                type="number"
-                value={minCheckSize}
-                onChange={(e) => setMinCheckSize(e.target.value)}
-                className="text-sm"
-              />
-              <Input
-                placeholder="Max"
-                type="number"
-                value={maxCheckSize}
-                onChange={(e) => setMaxCheckSize(e.target.value)}
-                className="text-sm"
-              />
-            </div>
-          </div>
-
-          <Button
-            type="button"
-            variant="primary"
-            className="w-full"
-            onClick={handleApplyFilters}
-            disabled={isApplyingFilters}
-          >
-            {isApplyingFilters ? 'Applying...' : 'Apply filters'}
-          </Button>
-        </motion.div>
-      </motion.div>
-    ),
-    [selectedStages, selectedSectors, locationFilter, minCheckSize, maxCheckSize, isApplyingFilters, toggleStage, toggleSector, handleApplyFilters],
-  );
-
-  if (isLoading && profiles.length === 0) {
-    return (
-      <ProtectedRoute>
-        <div className="flex items-center justify-center min-h-screen">
-          <LoadingSpinner size="lg" />
-        </div>
-      </ProtectedRoute>
-    );
-  }
-
-  if (error && profiles.length === 0) {
-    return (
-      <ProtectedRoute>
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="text-center max-w-md mx-auto px-4">
-            <p className="text-red-600 mb-4">{error}</p>
-            {!user?.profile_id && (
-              <p className="text-slate-100 mb-4">
-                You need to complete your profile first. <a href="/onboarding" className="text-blue-600 underline">Go to onboarding</a>
-              </p>
-            )}
-            {user?.profile_id && (
-              <Button onClick={() => loadProfiles()}>Retry</Button>
-            )}
-          </div>
-        </div>
-      </ProtectedRoute>
-    );
-  }
-
-  if (!currentProfile) {
-    return (
-      <ProtectedRoute>
-        <div className="flex items-center justify-center min-h-screen bg-slate-900">
-          <motion.div
-            className="text-center max-w-md mx-auto px-4"
-            variants={scaleIn}
-            initial="hidden"
-            animate="visible"
-          >
-            <motion.h2
-              className="text-2xl font-bold text-slate-100 mb-4"
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0, duration: 0.15 }}
-            >
-              All Caught Up! 🎉
-            </motion.h2>
-            <motion.p
-              className="text-slate-100 text-lg mb-2"
-              initial={{ y: 5, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.05, duration: 0.15 }}
-            >
-              You've seen all available profiles
-            </motion.p>
-            <motion.p
-              className="text-slate-100 text-sm mb-6"
-              initial={{ y: 5, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.1, duration: 0.15 }}
-            >
-              Check your <a href="/likes" className="text-blue-600 hover:underline">Likes</a> or <a href="/messages" className="text-blue-600 hover:underline">Messages</a> to see your matches!
-            </motion.p>
-            <motion.div
-              initial={{ y: 5, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.15, duration: 0.15 }}
-            >
-              <Button onClick={() => loadProfiles()} variant="primary">Refresh Feed</Button>
-            </motion.div>
-          </motion.div>
-        </div>
-      </ProtectedRoute>
-    );
-  }
-
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-slate-900 py-8 px-4 pb-24">
-        <div className="max-w-5xl mx-auto lg:flex lg:gap-8">
-          {/* Sidebar filters - Memoized to prevent flickering */}
-          {filterSidebar}
-
-          {/* Main content */}
-          <div className="flex-1">
-            <div className="mb-4 text-center">
-              <h1 className="text-2xl font-bold text-slate-100">Discover</h1>
-              <div className="flex items-center justify-center gap-4 text-sm text-slate-100">
-                <span>{profiles.length - currentIndex} profiles remaining</span>
-                {dailyLimits && (
-                  <>
-                    <span>•</span>
-                    <span>{dailyLimits.standard_likes_remaining} likes remaining today</span>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {isLoading && currentIndex === profiles.length - 1 ? (
-              <motion.div
-                className="flex items-center justify-center py-12"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.2 }}
-              >
-                <LoadingSpinner size="lg" />
-              </motion.div>
-            ) : (
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={currentProfile.id}
-                  initial="hidden"
-                  animate="visible"
-                  exit="exit"
-                  variants={slideLeft}
-                >
-                  <ProfileCard
-                    profile={currentProfile}
-                    onLike={handleLike}
-                    onPass={handlePass}
-                    onViewDiligence={currentProfile.role === 'founder' ? handleViewDiligence : undefined}
-                    dailyLimits={dailyLimits}
-                  />
-                </motion.div>
-              </AnimatePresence>
-            )}
+      <div className="min-h-screen">
+        {/* Top header bar */}
+        <div className="border-b border-slate-200 bg-white px-6 lg:px-10 py-5">
+          <div className="max-w-6xl">
+            <h1 className="text-2xl font-semibold text-slate-900">
+              Welcome, {displayName}
+            </h1>
+            <p className="text-sm text-slate-500 mt-0.5">
+              Discover founders and investors that match your criteria.
+            </p>
           </div>
         </div>
 
-        {/* Fixed Action Buttons - Completely separate from card content to prevent layout shift */}
-        <AnimatePresence>
-          {currentProfile && (
-            <motion.div
-              className="fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-700 px-4 py-4 z-10 shadow-lg"
-              initial={{ y: 100, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 100, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            >
-              <div className="max-w-5xl mx-auto">
-                <div className="max-w-2xl mx-auto flex gap-4">
-                  <Button
-                    variant="outline"
-                    onClick={handlePass}
-                    disabled={isLoading}
-                    className="flex-1 h-12 text-base font-semibold"
+        <div className="px-6 lg:px-10 py-6">
+          <div className="max-w-6xl flex gap-6 items-start">
+            {/* Main content */}
+            <div className="flex-1 min-w-0">
+              {/* Stats strip */}
+              <div className="flex items-center gap-4 mb-6">
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs text-slate-600">
+                  <span className="font-semibold text-slate-900">{profiles.length > 0 ? profiles.length - currentIndex : 0}</span> profiles
+                </div>
+                {dailyLimits && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs text-slate-600">
+                    <span className="font-semibold text-slate-900">{dailyLimits.standard_likes_remaining}</span> likes today
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setFiltersOpen(!filtersOpen)}
+                  className={`ml-auto flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+                    filtersOpen || selectedStages.length > 0 || selectedSectors.length > 0 || locationFilter.trim()
+                      ? 'bg-slate-900 text-white border-slate-900'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                  </svg>
+                  Filters
+                  {(selectedStages.length > 0 || selectedSectors.length > 0 || locationFilter.trim()) && (
+                    <span className="w-4 h-4 rounded-full bg-white text-slate-900 text-[10px] font-bold flex items-center justify-center">
+                      {selectedStages.length + selectedSectors.length + (locationFilter.trim() ? 1 : 0)}
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {/* Filters dropdown */}
+              <AnimatePresence>
+                {filtersOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden mb-6"
                   >
-                    Pass
-                  </Button>
-                  <Button
-                    variant="primary"
-                    onClick={() => handleLike('standard')}
-                    disabled={isLoading || (dailyLimits?.standard_likes_remaining ?? 0) <= 0}
-                    className="flex-1 h-12 text-base font-semibold"
+                    <div className="bg-white rounded-2xl border border-slate-200 p-5">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                          <p className="text-xs font-semibold text-slate-900 uppercase tracking-wider mb-2">Stage</p>
+                          <div className="space-y-1.5">
+                            {STAGE_OPTIONS.map((stage) => (
+                              <label key={stage} className="flex items-center gap-2 cursor-pointer group">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedStages.includes(stage)}
+                                  onChange={() => setSelectedStages((prev) =>
+                                    prev.includes(stage) ? prev.filter((s) => s !== stage) : [...prev, stage]
+                                  )}
+                                  className="w-3.5 h-3.5 rounded border-slate-300 text-slate-900 focus:ring-slate-900/20"
+                                />
+                                <span className="text-sm text-slate-600 group-hover:text-slate-900 transition-colors">{stage}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <p className="text-xs font-semibold text-slate-900 uppercase tracking-wider mb-2">Sector</p>
+                          <div className="space-y-1.5">
+                            {SECTOR_OPTIONS.map((sector) => (
+                              <label key={sector} className="flex items-center gap-2 cursor-pointer group">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedSectors.includes(sector)}
+                                  onChange={() => setSelectedSectors((prev) =>
+                                    prev.includes(sector) ? prev.filter((s) => s !== sector) : [...prev, sector]
+                                  )}
+                                  className="w-3.5 h-3.5 rounded border-slate-300 text-slate-900 focus:ring-slate-900/20"
+                                />
+                                <span className="text-sm text-slate-600 group-hover:text-slate-900 transition-colors">{sector}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <p className="text-xs font-semibold text-slate-900 uppercase tracking-wider mb-2">Location</p>
+                          <LocationAutocomplete
+                            label=""
+                            value={locationFilter}
+                            onChange={(val) => setLocationFilter(val)}
+                            placeholder="e.g., San Francisco"
+                            selectFormat="city"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-slate-100">
+                        <button
+                          type="button"
+                          onClick={handleClearFilters}
+                          className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 transition-colors"
+                        >
+                          Clear all
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleApplyFilters}
+                          disabled={isApplyingFilters}
+                          className="px-6 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-colors disabled:opacity-50"
+                        >
+                          {isApplyingFilters ? 'Applying...' : 'Apply filters'}
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Content */}
+              {isLoading && profiles.length === 0 ? (
+                <div className="flex items-center justify-center py-24">
+                  <div className="animate-spin w-8 h-8 border-2 border-slate-200 border-t-slate-900 rounded-full" />
+                </div>
+              ) : error && profiles.length === 0 ? (
+                <div className="text-center py-24">
+                  <p className="text-red-500 text-sm mb-3">{error}</p>
+                  {!user?.profile_id ? (
+                    <Link href="/onboarding" className="text-sm font-medium text-slate-900 hover:underline">
+                      Complete your profile
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => loadProfiles()}
+                      className="text-sm font-medium text-slate-900 hover:underline"
+                    >
+                      Try again
+                    </button>
+                  )}
+                </div>
+              ) : !currentProfile ? (
+                <div className="text-center py-24">
+                  {(selectedStages.length > 0 || selectedSectors.length > 0 || locationFilter.trim()) ? (
+                    <>
+                      <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-slate-100 flex items-center justify-center">
+                        <svg className="w-7 h-7 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                      </div>
+                      <h2 className="text-lg font-semibold text-slate-900 mb-1">No profiles match your filters</h2>
+                      <p className="text-sm text-slate-500 mb-1">
+                        Active filters:{' '}
+                        {[
+                          ...selectedStages,
+                          ...selectedSectors,
+                          ...(locationFilter.trim() ? [locationFilter.trim()] : []),
+                        ].join(', ')}
+                      </p>
+                      <p className="text-sm text-slate-400 mb-4">Try broadening your search or clearing some filters.</p>
+                      <button
+                        type="button"
+                        onClick={handleClearFilters}
+                        className="text-sm font-medium text-slate-900 hover:underline"
+                      >
+                        Clear all filters
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-slate-100 flex items-center justify-center">
+                        <svg className="w-7 h-7 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <h2 className="text-lg font-semibold text-slate-900 mb-1">All caught up</h2>
+                      <p className="text-sm text-slate-500 mb-4">You&apos;ve reviewed all available profiles.</p>
+                      <div className="flex items-center justify-center gap-3">
+                        <Link href="/likes" className="text-sm font-medium text-slate-900 hover:underline">
+                          View likes
+                        </Link>
+                        <span className="text-slate-300">·</span>
+                        <Link href="/messages" className="text-sm font-medium text-slate-900 hover:underline">
+                          Messages
+                        </Link>
+                        <span className="text-slate-300">·</span>
+                        <button type="button" onClick={() => loadProfiles()} className="text-sm font-medium text-slate-900 hover:underline">
+                          Refresh
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={currentProfile.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.2 }}
                   >
-                    Interested
-                  </Button>
+                    <ProfileCard
+                      profile={currentProfile}
+                      onLike={handleLike}
+                      onPass={handlePass}
+                      onViewDiligence={currentProfile.role === 'founder' ? handleViewDiligence : undefined}
+                      dailyLimits={dailyLimits}
+                    />
+                  </motion.div>
+                </AnimatePresence>
+              )}
+            </div>
+
+            {/* Right sidebar */}
+            <div className="hidden xl:block w-72 shrink-0 space-y-4">
+              {/* Action items card */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-5">
+                <h3 className="text-sm font-semibold text-slate-900 mb-3">Your action items</h3>
+                <div className="space-y-2.5">
+                  <Link
+                    href="/likes"
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 transition-colors group"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-900 group-hover:text-slate-700">Check your likes</p>
+                      <p className="text-xs text-slate-500">See who&apos;s interested</p>
+                    </div>
+                    <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" /></svg>
+                  </Link>
+
+                  <Link
+                    href="/messages"
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 transition-colors group"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-900 group-hover:text-slate-700">Messages</p>
+                      <p className="text-xs text-slate-500">Chat with matches</p>
+                    </div>
+                    <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" /></svg>
+                  </Link>
+
+                  <Link
+                    href="/profile"
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 transition-colors group"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-900 group-hover:text-slate-700">Edit profile</p>
+                      <p className="text-xs text-slate-500">Update your details</p>
+                    </div>
+                    <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" /></svg>
+                  </Link>
                 </div>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+
+              {/* Quick tips card */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-5">
+                <h3 className="text-sm font-semibold text-slate-900 mb-2">Getting started</h3>
+                <div className="space-y-3">
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-5 h-5 rounded-full bg-slate-900 flex items-center justify-center text-white text-[10px] font-bold shrink-0 mt-0.5">1</div>
+                    <p className="text-xs text-slate-600 leading-relaxed">Browse profiles and express interest by clicking &ldquo;Interested.&rdquo;</p>
+                  </div>
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-5 h-5 rounded-full bg-slate-900 flex items-center justify-center text-white text-[10px] font-bold shrink-0 mt-0.5">2</div>
+                    <p className="text-xs text-slate-600 leading-relaxed">When both sides are interested, you&apos;ll match and can start messaging.</p>
+                  </div>
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-5 h-5 rounded-full bg-slate-900 flex items-center justify-center text-white text-[10px] font-bold shrink-0 mt-0.5">3</div>
+                    <p className="text-xs text-slate-600 leading-relaxed">Complete your profile to improve match quality.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Due Diligence Sidebar */}
         {diligenceProfileId && (
@@ -561,4 +550,3 @@ export default function DiscoverPage() {
     </ProtectedRoute>
   );
 }
-

@@ -6,7 +6,31 @@ import type { WebSocketMessage } from '@/hooks/useWebSocket';
 
 import { DEFAULT_WS_BASE_URL, STORAGE_KEYS, WS_PING_INTERVAL_MS, WS_MAX_RECONNECT_DELAY_MS } from '../constants';
 
-const WS_BASE_URL = process.env.NEXT_PUBLIC_WS_URL || DEFAULT_WS_BASE_URL;
+function deriveWsBaseUrlFromApiBaseUrl(apiBaseUrl: string): string {
+  try {
+    const u = new URL(apiBaseUrl);
+    u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
+
+    // If API base ends with /api/v{n}, convert to /api/v{n}/realtime/ws
+    const m = u.pathname.match(/\/api\/v(\d+)\/?$/);
+    if (m?.[1]) {
+      u.pathname = `/api/v${m[1]}/realtime/ws`;
+    } else {
+      // Fallback: append /realtime/ws
+      u.pathname = `${u.pathname.replace(/\/$/, '')}/realtime/ws`;
+    }
+
+    u.search = '';
+    u.hash = '';
+    return u.toString().replace(/\/$/, '');
+  } catch {
+    return DEFAULT_WS_BASE_URL;
+  }
+}
+
+const WS_BASE_URL =
+  process.env.NEXT_PUBLIC_WS_URL ||
+  (process.env.NEXT_PUBLIC_API_URL ? deriveWsBaseUrlFromApiBaseUrl(process.env.NEXT_PUBLIC_API_URL) : DEFAULT_WS_BASE_URL);
 
 export function getWebSocketUrl(profileId: string): string {
   const token = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN) : null;

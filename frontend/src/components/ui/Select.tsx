@@ -1,5 +1,5 @@
 /**
- * Select dropdown component
+ * Select dropdown – light theme
  */
 
 import { SelectHTMLAttributes, forwardRef } from 'react';
@@ -14,17 +14,19 @@ export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(
   ({ label, error, helperText, options, className = '', ...props }, ref) => {
     const selectClasses = `
-      w-full px-3 py-2 border rounded-lg text-slate-100 bg-slate-800
-      focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent
-      disabled:bg-slate-700 disabled:cursor-not-allowed disabled:text-slate-100
-      ${error ? 'border-red-500' : 'border-slate-600'}
+      w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900
+      placeholder:text-slate-200
+      focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-300
+      disabled:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400
+      transition-colors
+      ${error ? 'border-red-300' : ''}
       ${className}
     `;
-    
+
     return (
       <div className="w-full">
         {label && (
-          <label className="block text-sm font-medium text-slate-100 mb-1">
+          <label className="block text-sm font-medium text-slate-700 mb-1">
             {label}
             {props.required && <span className="text-red-400 ml-1">*</span>}
           </label>
@@ -36,16 +38,16 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
         >
           {!props.required && <option value="">Select an option</option>}
           {options.map((option) => (
-            <option key={option.value} value={option.value} className="bg-slate-800 text-slate-100">
+            <option key={option.value} value={option.value}>
               {option.label}
             </option>
           ))}
         </select>
         {error && (
-          <p className="mt-1 text-sm text-red-400">{error}</p>
+          <p className="mt-1 text-sm text-red-500">{error}</p>
         )}
         {helperText && !error && (
-          <p className="mt-1 text-sm text-slate-100">{helperText}</p>
+          <p className="mt-1 text-sm text-slate-500">{helperText}</p>
         )}
       </div>
     );
@@ -53,4 +55,3 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
 );
 
 Select.displayName = 'Select';
-

@@ -1,380 +1,293 @@
 /**
- * Signup page - Redesigned with elegant styling
+ * Signup page – Contra-inspired clean split layout
+ * Left: form (Google + email fields)
+ * Right: testimonial / brand messaging
  */
 
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { motion } from "framer-motion";
-import { useAuth } from "@/contexts/AuthContext";
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { motion } from 'framer-motion';
+import { useAuth } from '@/contexts/AuthContext';
+import { authApi } from '@/lib/api/auth';
+import { Turnstile } from '@/components/ui/Turnstile';
+
+type Role = 'investor' | 'founder';
 
 export default function SignupPage() {
+  const [step, setStep] = useState<'form' | 'role'>('form');
   const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-    confirmPassword: "",
-    fullName: "",
-    role: "investor" as "investor" | "founder",
+    fullName: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
   });
-  const [error, setError] = useState("");
+  const [selectedRole, setSelectedRole] = useState<Role | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState<string>('');
+  const [turnstileEnabled, setTurnstileEnabled] = useState(true);
+  const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { signup } = useAuth();
   const router = useRouter();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleGoogleSignIn = async () => {
+    try {
+      const redirectUri = `${window.location.origin}/callback/google`;
+      const { authorization_url } = await authApi.getGoogleAuthUrl(redirectUri);
+      window.location.href = authorization_url;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start Google sign-in.');
+    }
+  };
+
+  const handleContinue = (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
+    setError('');
 
+    if (!formData.fullName.trim() || !formData.email.trim()) {
+      setError('Name and email are required.');
+      return;
+    }
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters.');
+      return;
+    }
     if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match");
+      setError('Passwords do not match.');
       return;
     }
 
-    if (formData.password.length < 8) {
-      setError("Password must be at least 8 characters");
+    setStep('role');
+  };
+
+  const handleSignup = async () => {
+    if (!selectedRole) {
+      setError('Please select a role.');
       return;
     }
-
+    setError('');
     setIsLoading(true);
 
     try {
-      await signup(
-        formData.email,
-        formData.password,
-        formData.role,
-        formData.fullName
-      );
-      router.push(`/onboarding?role=${formData.role}`);
+      await signup(formData.email, formData.password, selectedRole, formData.fullName, turnstileToken || undefined);
+      router.push(`/verify-email?email=${encodeURIComponent(formData.email)}`);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Signup failed. Please try again."
-      );
+      setError(err instanceof Error ? err.message : 'Signup failed.');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div 
-      className="min-h-screen flex items-center justify-center relative overflow-hidden py-12"
-      style={{ background: 'linear-gradient(135deg, #0a0b14 0%, #0f1419 50%, #0a0b14 100%)' }}
-    >
-      {/* Animated background orbs */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <motion.div 
-          className="absolute w-[600px] h-[600px] rounded-full opacity-20"
-          style={{
-            background: 'radial-gradient(circle, rgba(251, 191, 36, 0.12) 0%, transparent 70%)',
-            top: '-15%',
-            left: '-10%',
-          }}
-          animate={{ 
-            scale: [1, 1.1, 1],
-            opacity: [0.12, 0.2, 0.12],
-          }}
-          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-        />
-        <motion.div 
-          className="absolute w-[500px] h-[500px] rounded-full opacity-15"
-          style={{
-            background: 'radial-gradient(circle, rgba(30, 64, 175, 0.15) 0%, transparent 70%)',
-            bottom: '-10%',
-            right: '-10%',
-          }}
-          animate={{ 
-            scale: [1, 1.15, 1],
-            opacity: [0.1, 0.18, 0.1],
-          }}
-          transition={{ duration: 12, repeat: Infinity, ease: "easeInOut", delay: 2 }}
-        />
+    <div className="min-h-screen flex" style={{ background: '#fafafa' }}>
+      {/* Left panel – form */}
+      <div className="flex-1 flex flex-col justify-center px-8 md:px-16 lg:px-24 py-12 max-w-[600px]">
+        {/* Logo */}
+        <Link href="/" className="text-2xl font-semibold tracking-tight text-slate-900 mb-12 inline-block w-fit">
+          Startr
+        </Link>
+
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+        >
+          {step === 'form' ? (
+            <>
+              <h1 className="text-3xl font-semibold text-slate-900 mb-2">Sign up to Startr</h1>
+              <p className="text-slate-500 text-sm mb-8">
+                Connect with the right investors and founders.
+              </p>
+
+              {/* Google button */}
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                className="w-full flex items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors mb-6"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                Continue with Google
+              </button>
+
+              <div className="flex items-center gap-4 mb-6">
+                <div className="flex-1 h-px bg-slate-200" />
+                <span className="text-xs text-slate-400 uppercase tracking-wider font-medium">or sign up with</span>
+                <div className="flex-1 h-px bg-slate-200" />
+              </div>
+
+              <form onSubmit={handleContinue} className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <input
+                    type="text"
+                    value={formData.fullName.split(' ')[0] || ''}
+                    onChange={(e) => {
+                      const last = formData.fullName.split(' ').slice(1).join(' ');
+                      setFormData({ ...formData, fullName: `${e.target.value}${last ? ' ' + last : ''}` });
+                    }}
+                    placeholder="First name"
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-300 transition-colors"
+                  />
+                  <input
+                    type="text"
+                    value={formData.fullName.split(' ').slice(1).join(' ') || ''}
+                    onChange={(e) => {
+                      const first = formData.fullName.split(' ')[0] || '';
+                      setFormData({ ...formData, fullName: `${first}${e.target.value ? ' ' + e.target.value : ''}` });
+                    }}
+                    placeholder="Last name"
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-300 transition-colors"
+                  />
+                </div>
+
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  placeholder="name@work-email.com"
+                  required
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-300 transition-colors"
+                />
+
+                <input
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  placeholder="Password"
+                  required
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-300 transition-colors"
+                />
+
+                <input
+                  type="password"
+                  value={formData.confirmPassword}
+                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                  placeholder="Confirm password"
+                  required
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-300 transition-colors"
+                />
+
+                <Turnstile
+                  onVerify={setTurnstileToken}
+                  onExpire={() => setTurnstileToken('')}
+                  onError={() => setTurnstileToken('')}
+                  onReady={(enabled) => setTurnstileEnabled(enabled)}
+                  className="flex justify-center my-2"
+                />
+
+                {error && (
+                  <p className="text-red-500 text-sm">{error}</p>
+                )}
+
+                <button
+                  type="submit"
+                  className="w-full rounded-xl bg-slate-900 text-white py-3 text-sm font-medium hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  disabled={!formData.fullName.trim() || !formData.email.trim() || !formData.password || (turnstileEnabled && !turnstileToken)}
+                >
+                  Continue
+                </button>
+              </form>
+
+              <p className="text-sm text-slate-500 mt-6 text-center">
+                Already have an account?{' '}
+                <Link href="/login" className="font-medium text-slate-900 hover:underline">
+                  Sign in
+                </Link>
+              </p>
+            </>
+          ) : (
+            /* Role selection step */
+            <>
+              <button
+                type="button"
+                onClick={() => { setStep('form'); setError(''); }}
+                className="text-sm text-slate-500 hover:text-slate-700 mb-6 flex items-center gap-1 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                Back
+              </button>
+
+              <h1 className="text-3xl font-semibold text-slate-900 mb-2">What brings you here?</h1>
+              <p className="text-slate-500 text-sm mb-8">Select your role to get started.</p>
+
+              <div className="space-y-3 mb-8">
+                {([
+                  { value: 'founder' as Role, title: 'Founder', desc: 'I\'m building a startup and looking for investors.' },
+                  { value: 'investor' as Role, title: 'Investor', desc: 'I invest in startups and want to discover founders.' },
+                ] as const).map((role) => (
+                  <button
+                    key={role.value}
+                    type="button"
+                    onClick={() => setSelectedRole(role.value)}
+                    className={`w-full rounded-xl border-2 p-4 text-left transition-all ${
+                      selectedRole === role.value
+                        ? 'border-slate-900 bg-slate-50'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <p className="font-medium text-slate-900 text-sm">{role.title}</p>
+                    <p className="text-slate-500 text-xs mt-0.5">{role.desc}</p>
+                  </button>
+                ))}
+              </div>
+
+              {error && (
+                <p className="text-red-500 text-sm mb-4">{error}</p>
+              )}
+
+              <button
+                type="button"
+                onClick={handleSignup}
+                disabled={!selectedRole || isLoading}
+                className="w-full rounded-xl bg-slate-900 text-white py-3 text-sm font-medium hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {isLoading ? 'Creating account...' : 'Create account'}
+              </button>
+            </>
+          )}
+        </motion.div>
       </div>
 
-      {/* Decorative elements */}
-      <motion.div 
-        className="absolute top-16 right-16 w-40 h-40 border border-amber-500/10 rounded-full hidden lg:block"
-        animate={{ rotate: 360 }}
-        transition={{ duration: 35, repeat: Infinity, ease: "linear" }}
-      />
-      <motion.div 
-        className="absolute top-1/4 right-1/4 w-20 h-20 border border-amber-500/5 rounded-full hidden lg:block"
-        animate={{ rotate: -360 }}
-        transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-      />
-      <motion.div 
-        className="absolute bottom-24 left-16 w-28 h-28 border border-blue-500/10 rounded-full hidden lg:block"
-        animate={{ rotate: -360 }}
-        transition={{ duration: 28, repeat: Infinity, ease: "linear" }}
-      />
-
-      {/* Floating dots - left side */}
-      {[...Array(4)].map((_, i) => (
+      {/* Right panel – branding / social proof */}
+      <div className="hidden lg:flex flex-1 items-center justify-center bg-slate-50 border-l border-slate-100 px-12">
         <motion.div
-          key={`left-${i}`}
-          className="absolute w-1.5 h-1.5 bg-amber-400/20 rounded-full hidden lg:block"
-          style={{
-            top: `${25 + i * 18}%`,
-            left: `${8 + i * 3}%`,
-          }}
-          animate={{
-            y: [0, -15, 0],
-            opacity: [0.2, 0.5, 0.2],
-          }}
-          transition={{
-            duration: 4 + i,
-            repeat: Infinity,
-            ease: "easeInOut",
-            delay: i * 0.7,
-          }}
-        />
-      ))}
-
-      {/* Floating dots - right side */}
-      {[...Array(4)].map((_, i) => (
-        <motion.div
-          key={`right-${i}`}
-          className="absolute w-1 h-1 bg-blue-400/20 rounded-full hidden lg:block"
-          style={{
-            top: `${30 + i * 15}%`,
-            right: `${10 + i * 4}%`,
-          }}
-          animate={{
-            y: [0, -20, 0],
-            opacity: [0.15, 0.4, 0.15],
-          }}
-          transition={{
-            duration: 3.5 + i,
-            repeat: Infinity,
-            ease: "easeInOut",
-            delay: i * 0.5,
-          }}
-        />
-      ))}
-
-      {/* Main content */}
-      <motion.div 
-        className="relative z-10 w-full max-w-md px-6"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-      >
-        {/* Logo/Brand */}
-        <motion.div 
-          className="text-center mb-8"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+          className="max-w-md"
+          initial={{ opacity: 0, x: 24 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
         >
-          <Link href="/" className="inline-flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-amber-400 to-yellow-500 rounded-lg flex items-center justify-center font-bold text-sm text-[#0a0b14]">
+          <div className="mb-8">
+            <div className="w-1 h-10 bg-slate-900 rounded-full mb-6" />
+            <p className="text-xl text-slate-700 leading-relaxed font-light">
+              Startr is the first platform designed for founders and investors to find each other based on real fit — not cold outreach.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 mb-12">
+            <div className="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center text-white text-sm font-semibold">
               S
             </div>
-            <span className="text-xl font-semibold tracking-tight bg-gradient-to-r from-amber-200 to-yellow-100 bg-clip-text text-transparent">
-              Startr
-            </span>
-          </Link>
-        </motion.div>
-
-        {/* Card */}
-        <motion.div 
-          className="backdrop-blur-xl rounded-2xl p-8 border border-white/10"
-          style={{
-            background: 'linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255,255,255,0.1)',
-          }}
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.3, duration: 0.5 }}
-        >
-          {/* Header */}
-          <div className="text-center mb-8">
-            <motion.div 
-              className="flex items-center justify-center gap-3 mb-3"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4 }}
-            >
-              <div className="w-8 h-[2px] bg-gradient-to-r from-transparent to-amber-400/60" />
-              <span className="text-amber-400/80 text-xs tracking-widest uppercase">Join us</span>
-              <div className="w-8 h-[2px] bg-gradient-to-l from-transparent to-amber-400/60" />
-            </motion.div>
-            <h2 className="text-2xl font-semibold text-white">Create your account</h2>
-            <p className="text-slate-400 text-sm mt-2">Start your journey today</p>
+            <div>
+              <p className="text-sm font-medium text-slate-900">Startr Team</p>
+              <p className="text-xs text-slate-500">Building the future of fundraising</p>
+            </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
-              <motion.div 
-                className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm"
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-              >
-                {error}
-              </motion.div>
-            )}
-
-            <div className="space-y-1.5">
-              <label className="block text-sm text-slate-400 ml-1">Full Name</label>
-              <input
-                type="text"
-                value={formData.fullName}
-                onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                required
-                disabled={isLoading}
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 transition-all duration-200"
-              />
+          <div className="border-t border-slate-200 pt-6">
+            <p className="text-xs text-slate-400 uppercase tracking-wider font-medium mb-4">
+              Trusted by founders and investors
+            </p>
+            <div className="flex items-center gap-6 text-slate-400 text-sm font-medium">
+              <span>YC Founders</span>
+              <span className="text-slate-300">·</span>
+              <span>Angel Investors</span>
+              <span className="text-slate-300">·</span>
+              <span>VCs</span>
             </div>
-
-            <div className="space-y-1.5">
-              <label className="block text-sm text-slate-400 ml-1">Email</label>
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                required
-                disabled={isLoading}
-                autoComplete="email"
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 transition-all duration-200"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="block text-sm text-slate-400 ml-1">I am a...</label>
-              <div className="grid grid-cols-2 gap-3">
-                <motion.button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, role: "investor" })}
-                  className={`py-3 px-4 rounded-xl border text-sm font-medium transition-all duration-200 ${
-                    formData.role === "investor"
-                      ? "border-amber-500/50 bg-amber-500/10 text-amber-400"
-                      : "border-white/10 bg-white/5 text-slate-400 hover:border-white/20"
-                  }`}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  disabled={isLoading}
-                >
-                  <span className="flex items-center justify-center gap-2">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                      <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                    Investor
-                  </span>
-                </motion.button>
-                <motion.button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, role: "founder" })}
-                  className={`py-3 px-4 rounded-xl border text-sm font-medium transition-all duration-200 ${
-                    formData.role === "founder"
-                      ? "border-amber-500/50 bg-amber-500/10 text-amber-400"
-                      : "border-white/10 bg-white/5 text-slate-400 hover:border-white/20"
-                  }`}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  disabled={isLoading}
-                >
-                  <span className="flex items-center justify-center gap-2">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                    Founder
-                  </span>
-                </motion.button>
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="block text-sm text-slate-400 ml-1">Password</label>
-              <input
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                required
-                disabled={isLoading}
-                autoComplete="new-password"
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 transition-all duration-200"
-              />
-              <p className="text-xs text-slate-500 ml-1">At least 8 characters</p>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="block text-sm text-slate-400 ml-1">Confirm Password</label>
-              <input
-                type="password"
-                value={formData.confirmPassword}
-                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                required
-                disabled={isLoading}
-                autoComplete="new-password"
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 transition-all duration-200"
-              />
-            </div>
-
-            <motion.button
-              type="submit"
-              disabled={isLoading}
-              className="w-full py-3.5 px-6 rounded-xl font-semibold text-[#0a0b14] disabled:opacity-50 disabled:cursor-not-allowed mt-6 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-300 hover:to-yellow-400 transition-all shadow-lg shadow-amber-500/20"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <span className="flex items-center justify-center gap-2">
-                {isLoading ? (
-                  <>
-                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
-                    Creating account...
-                  </>
-                ) : (
-                  <>
-                    Create Account
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                      <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  </>
-                )}
-              </span>
-            </motion.button>
-          </form>
-
-          {/* Divider */}
-          <div className="flex items-center gap-4 my-6">
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-            <span className="text-slate-500 text-xs">or</span>
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
           </div>
-
-          {/* Login link */}
-          <p className="text-center text-slate-400 text-sm">
-            Already have an account?{' '}
-            <Link 
-              href="/login" 
-              className="text-amber-400 hover:text-amber-300 font-medium transition-colors"
-            >
-              Sign in
-            </Link>
-          </p>
         </motion.div>
-
-        {/* Back to home */}
-        <motion.div 
-          className="text-center mt-8"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.6 }}
-        >
-          <Link 
-            href="/" 
-            className="text-slate-500 hover:text-slate-400 text-sm flex items-center justify-center gap-2 transition-colors"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="rotate-180">
-              <path d="M6 12L10 8L6 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            Back to home
-          </Link>
-        </motion.div>
-      </motion.div>
+      </div>
     </div>
   );
 }

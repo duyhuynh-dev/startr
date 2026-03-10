@@ -279,32 +279,39 @@ class OAuthService:
         if not settings.google_client_id or not settings.google_client_secret:
             raise ValidationError("Google OAuth is not configured. Please add credentials to .env")
         
-        # Exchange code for access token using authlib
-        async with AsyncOAuth2Client(
-            client_id=settings.google_client_id,
-            client_secret=settings.google_client_secret,
-        ) as client:
-            token_response = await client.fetch_token(
+        async with httpx.AsyncClient() as client:
+            # Exchange code for access token
+            token_response = await client.post(
                 "https://oauth2.googleapis.com/token",
-                code=code,
-                redirect_uri=redirect_uri,
+                data={
+                    "grant_type": "authorization_code",
+                    "code": code,
+                    "redirect_uri": redirect_uri,
+                    "client_id": settings.google_client_id,
+                    "client_secret": settings.google_client_secret,
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
             
-            access_token = token_response.get("access_token")
+            if token_response.status_code != 200:
+                raise UnauthorizedError(f"Failed to exchange Google authorization code: {token_response.text}")
+            
+            token_json = token_response.json()
+            access_token = token_json.get("access_token")
             if not access_token:
                 raise UnauthorizedError("Failed to get Google access token")
             
             # Get user info from Google
             userinfo_response = await client.get(
                 "https://openidconnect.googleapis.com/v1/userinfo",
-                token=access_token,
+                headers={"Authorization": f"Bearer {access_token}"},
             )
             
             if userinfo_response.status_code != 200:
                 raise UnauthorizedError("Failed to get Google user profile")
             
             profile_data = userinfo_response.json()
-            google_id = profile_data.get("sub")  # Google user ID
+            google_id = profile_data.get("sub")
             email = profile_data.get("email")
             full_name = profile_data.get("name", "")
             given_name = profile_data.get("given_name", "")
@@ -314,60 +321,40 @@ class OAuthService:
             if not google_id:
                 raise UnauthorizedError("Failed to get Google user ID")
             
-            # Use name parts if full name not available
             if not full_name and (given_name or family_name):
                 full_name = f"{given_name} {family_name}".strip()
             
-            # Find or create user
+            # Find or create user (no profile -- new users go through onboarding)
             user = session.exec(
                 select(User).where(User.google_id == google_id)
             ).scalars().first()
             
+            is_new_user = False
             if not user:
-                # Check if user exists with this email
                 if email:
                     user = session.exec(
                         select(User).where(User.email == email)
                     ).scalars().first()
                     
                     if user:
-                        # Link Google ID to existing user
                         user.google_id = google_id
-                    else:
-                        # Create new user
-                        user = User(
-                            email=email or f"google_{google_id}@oauth.local",
-                            google_id=google_id,
-                            is_active=True,
-                            is_verified=True,  # OAuth users are considered verified
-                        )
-                        session.add(user)
-                        session.flush()
-                        
-                        # Create profile (default to founder, user can update later)
-                        profile = Profile(
-                            role="founder",  # Default role
-                            full_name=full_name or "Google User",
-                            email=email or user.email,
-                            profile_picture_url=picture,  # Use Google profile picture
-                            verification={
-                                "soft_verified": True,  # OAuth = soft verified
-                                "manual_reviewed": False,
-                                "accreditation_attested": False,
-                                "badges": ["oauth_google"],
-                            },
-                        )
-                        session.add(profile)
-                        session.flush()
-                        user.profile_id = profile.id
+                
+                if not user:
+                    is_new_user = True
+                    user = User(
+                        email=email or f"google_{google_id}@oauth.local",
+                        google_id=google_id,
+                        is_active=True,
+                        is_verified=True,
+                    )
+                    session.add(user)
+                    session.flush()
             else:
-                # Update last login
                 user.last_login = datetime.now(timezone.utc)
             
             session.commit()
             session.refresh(user)
             
-            # Generate tokens
             token_data = {
                 "sub": user.id,
                 "email": user.email,
@@ -426,12 +413,11 @@ class OAuthService:
                 session.add(user)
                 session.flush()
                 
-                # Create profile
                 profile = Profile(
-                    role="founder",  # Default role
+                    role="founder",
                     full_name=name or "Firebase User",
                     email=email or user.email,
-                    profile_picture_url=picture,
+                    avatar_url=picture,
                     verification={
                         "soft_verified": True,
                         "manual_reviewed": False,

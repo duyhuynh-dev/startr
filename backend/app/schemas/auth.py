@@ -15,12 +15,14 @@ class SignUpRequest(BaseModel):
     password: str = Field(..., min_length=8, description="Password must be at least 8 characters")
     role: str = Field(..., pattern="^(investor|founder)$", description="User role: investor or founder")
     full_name: str = Field(..., min_length=1, max_length=200)
+    turnstile_token: Optional[str] = None
 
 
 class LoginRequest(BaseModel):
     """Request to login with email and password."""
     email: EmailStr
     password: str
+    turnstile_token: Optional[str] = None
 
 
 class TokenResponse(BaseModel):
@@ -58,6 +60,7 @@ class OAuthCallbackRequest(BaseModel):
     code: Optional[str] = None  # For LinkedIn/Google
     id_token: Optional[str] = None  # For Firebase
     state: Optional[str] = None  # OAuth state parameter for CSRF protection
+    redirect_uri: Optional[str] = None  # SPA-provided redirect URI (must match authorize step)
 
 
 class UserResponse(BaseModel):
@@ -65,6 +68,8 @@ class UserResponse(BaseModel):
     id: str
     email: str
     profile_id: Optional[str] = None
+    full_name: Optional[str] = None
+    avatar_url: Optional[str] = None
     is_active: bool
     is_verified: bool
     is_admin: bool

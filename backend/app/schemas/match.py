@@ -5,7 +5,8 @@ from pydantic import BaseModel, Field
 
 
 class LikePayload(BaseModel):
-    sender_id: str
+    """sender_id is ignored; set from auth token."""
+    sender_id: Optional[str] = None
     recipient_id: str
     note: str | None = Field(default=None, max_length=1000)
     prompt_id: str | None = Field(default=None, description="Specific prompt being liked")
@@ -13,7 +14,8 @@ class LikePayload(BaseModel):
 
 
 class PassPayload(BaseModel):
-    user_id: str
+    """user_id is ignored; set from auth token."""
+    user_id: Optional[str] = None
     passed_profile_id: str
 
 

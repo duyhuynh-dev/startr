@@ -141,16 +141,50 @@ def create_application() -> FastAPI:
 
     @app.on_event("startup")
     async def on_startup() -> None:
+        import logging
+        from sqlmodel import Session
+        from app.db.session import engine
+        from app.services.discovery import discovery_feed_service
+
+        logger = logging.getLogger(__name__)
         create_db_and_tables()
         # Start WebSocket broadcast worker for real-time messaging
         try:
             from app.services.realtime_broadcast import start_broadcast_worker
             start_broadcast_worker()
         except Exception as e:
-            # Log but don't fail startup if WebSocket worker fails
-            import logging
-            logger = logging.getLogger(__name__)
             logger.warning(f"Failed to start WebSocket broadcast worker: {e}")
+
+        # Run Gale-Shapley stable matching so discovery feed shows stable matches first
+        try:
+            with Session(engine) as session:
+                result = discovery_feed_service.compute_stable_matching(session)
+                logger.info(f"Stable matching computed: {result}")
+        except Exception as e:
+            logger.warning(f"Stable matching skipped on startup: {e}")
+
+        # Start periodic Gale-Shapley recompute (runs in background, does not block startup)
+        if getattr(settings, "stable_matching_enabled", True) and getattr(settings, "stable_matching_interval_minutes", 0) > 0:
+            import asyncio
+
+            def _run_stable_matching() -> dict:
+                with Session(engine) as session:
+                    return discovery_feed_service.compute_stable_matching(session)
+
+            interval_seconds = settings.stable_matching_interval_minutes * 60
+
+            async def run_stable_matching_periodically() -> None:
+                while True:
+                    await asyncio.sleep(interval_seconds)
+                    try:
+                        result = await asyncio.to_thread(_run_stable_matching)
+                        logger.info(f"Stable matching recomputed: {result}")
+                    except asyncio.CancelledError:
+                        break
+                    except Exception as e:
+                        logger.warning(f"Stable matching periodic run failed: {e}")
+
+            asyncio.create_task(run_stable_matching_periodically())
 
     @app.get("/healthz", tags=["health"])
     def healthcheck(response: Response) -> dict[str, str]:

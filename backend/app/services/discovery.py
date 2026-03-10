@@ -8,11 +8,19 @@ from redis.exceptions import RedisError
 from sqlalchemy import select, func, or_, and_
 from sqlmodel import Session
 
-from app.core.cache import LIKES_QUEUE_PREFIX, CACHE_TTL_SHORT, CACHE_TTL_LONG, cache_service
+from app.core.cache import (
+    LIKES_QUEUE_PREFIX,
+    CACHE_TTL_SHORT,
+    CACHE_TTL_LONG,
+    cache_service,
+)
+from app.services.presence_service import get_online_profile_ids
+from app.services.gale_shapley import build_prefs_from_scores, gale_shapley
 from app.core.config import settings
 from app.core.redis import redis_client
-from app.models.match import Like
+from app.models.match import Like, Match
 from app.models.profile import Profile
+from app.models.user import User
 from app.schemas.feed import DiscoveryFeedResponse, LikesQueueItem, ProfileCard, StandoutProfile
 
 # ML services (optional - will fall back to heuristics if not available)
@@ -69,6 +77,10 @@ class DiscoveryFeedService:
                 feed_data = cached if isinstance(cached, dict) else json.loads(str(cached))
                 profile_ids = feed_data.get("profile_ids", [])
                 
+                # Remove profiles the user has since liked/passed/matched
+                excluded_ids = self._get_excluded_profile_ids(session, profile_id)
+                profile_ids = [pid for pid in profile_ids if pid not in excluded_ids]
+                
                 # Apply pagination
                 start_idx = int(cursor) if cursor else 0
                 end_idx = start_idx + limit
@@ -101,6 +113,8 @@ class DiscoveryFeedService:
                 max_check_size=None,
             )
             
+            # Reorder so Gale-Shapley stable match appears first (if any)
+            ranked_profile_ids = self._reorder_by_stable_match(ranked_profile_ids, profile_id)
             # Cache the ranking
             cache_data = {
                 "profile_ids": ranked_profile_ids,
@@ -119,6 +133,9 @@ class DiscoveryFeedService:
                 min_check_size=min_check_size,
                 max_check_size=max_check_size,
             )
+
+        # Reorder so Gale-Shapley stable match appears first (if any)
+        ranked_profile_ids = self._reorder_by_stable_match(ranked_profile_ids, profile_id)
 
         # Apply pagination
         start_idx = int(cursor) if cursor else 0
@@ -167,44 +184,60 @@ class DiscoveryFeedService:
             like_ids = redis_client.lrange(queue_key, 0, 50)
             if like_ids:
                 likes = []
+                sender_ids = []
                 for like_id in like_ids:
                     like = session.get(Like, like_id)
                     if like and like.recipient_id == profile_id:
-                        # Exclude if this like resulted in a match
                         if like.sender_id not in matched_profile_ids:
                             sender = session.get(Profile, like.sender_id)
                             if sender:
-                                likes.append(
-                                    LikesQueueItem(
-                                        profile=self._profile_to_base(sender),
-                                        like_id=like.id,
-                                        note=like.note,
-                                        liked_at=like.created_at.isoformat(),
-                                    )
-                                )
-                return likes
-        except RedisError:
-            pass
-
-        # Fallback to database - ensure we get Like objects, excluding matches
-        likes = session.exec(
-            select(Like).where(Like.recipient_id == profile_id).order_by(Like.created_at.desc()).limit(50)
-        ).scalars().all()
-        
-        result = []
-        for like in likes:
-            # Exclude if this like resulted in a match
-            if like.sender_id not in matched_profile_ids:
-                sender = session.get(Profile, like.sender_id)
-                if sender:
-                    result.append(
+                                sender_ids.append(sender.id)
+                                likes.append((like, sender))
+                if likes:
+                    online_ids = get_online_profile_ids(sender_ids)
+                    last_active_map = self._get_last_active_map(session, sender_ids)
+                    return [
                         LikesQueueItem(
                             profile=self._profile_to_base(sender),
                             like_id=like.id,
                             note=like.note,
                             liked_at=like.created_at.isoformat(),
+                            is_online=sender.id in online_ids,
+                            last_active_at=last_active_map.get(sender.id),
                         )
+                        for like, sender in likes
+                    ]
+        except RedisError:
+            pass
+
+        # Fallback to database
+        likes = session.exec(
+            select(Like).where(Like.recipient_id == profile_id).order_by(Like.created_at.desc()).limit(50)
+        ).scalars().all()
+        
+        result = []
+        sender_ids = []
+        items = []
+        for like in likes:
+            if like.sender_id not in matched_profile_ids:
+                sender = session.get(Profile, like.sender_id)
+                if sender:
+                    sender_ids.append(sender.id)
+                    items.append((like, sender))
+        if items:
+            online_ids = get_online_profile_ids(sender_ids)
+            last_active_map = self._get_last_active_map(session, sender_ids)
+            for like, sender in items:
+                result.append(
+                    LikesQueueItem(
+                        profile=self._profile_to_base(sender),
+                        like_id=like.id,
+                        note=like.note,
+                        liked_at=like.created_at.isoformat(),
+                        is_online=sender.id in online_ids,
+                        last_active_at=last_active_map.get(sender.id),
                     )
+                )
         return result
 
     def get_standouts(
@@ -291,11 +324,18 @@ class DiscoveryFeedService:
             max_check_size=max_check_size,
         )
         
-        # Log filter application if filters were applied
         if any([stages, sectors, location, min_check_size, max_check_size]):
             import logging
             logger = logging.getLogger(__name__)
-            logger.info(f"Filters applied - stages: {stages}, sectors: {sectors}, location: {location}, min_check: {min_check_size}, max_check: {max_check_size}. Filtered from {initial_count} to {len(candidates)} candidates.")
+            logger.info(
+                "Feed filters applied – stages=%s, sectors=%s, location=%s, "
+                "check_size=%s-%s | %d → %d candidates",
+                stages, sectors, location, min_check_size, max_check_size,
+                initial_count, len(candidates),
+            )
+            if len(candidates) < initial_count:
+                kept_locs = [c.location for c in candidates]
+                logger.debug("Kept candidate locations: %s", kept_locs)
 
         if not candidates:
             return []
@@ -351,6 +391,125 @@ class DiscoveryFeedService:
         scored.sort(key=lambda x: x[1], reverse=True)
         return [profile_id for profile_id, _ in scored]
 
+    def _reorder_by_stable_match(
+        self, ranked_ids: List[str], current_profile_id: str
+    ) -> List[str]:
+        """If current user has a Gale-Shapley stable match in the list, move it to the front."""
+        stable_id = cache_service.get_stable_match(current_profile_id)
+        if not stable_id or stable_id not in ranked_ids:
+            return ranked_ids
+        reordered = [stable_id]
+        for pid in ranked_ids:
+            if pid != stable_id:
+                reordered.append(pid)
+        return reordered
+
+    @staticmethod
+    def _extract_city(location_str: str) -> str:
+        """Extract the city name (first comma-separated part) from a location string.
+        Handles formats like 'San Francisco, CA', 'New York, New York, United States', etc.
+        """
+        return location_str.split(",")[0].strip().lower()
+
+    _SECTOR_ALIASES = {
+        "climate": {"cleantech", "clean tech", "greentech", "sustainability"},
+        "deep tech": {"deeptech", "hard tech", "hardtech"},
+        "ai/ml": {"ai", "ml", "artificial intelligence", "machine learning"},
+        "enterprise": {"b2b", "enterprise saas"},
+        "fintech": {"financial technology", "payments"},
+        "web3": {"crypto", "blockchain", "defi"},
+        "healthcare": {"health", "biotech", "bio tech", "medtech"},
+    }
+
+    @classmethod
+    def _sector_matches(cls, filter_sector: str, candidate_sector: str) -> bool:
+        """Check if a filter sector matches a candidate sector.
+        Uses substring matching plus alias expansion.
+        """
+        f = filter_sector.lower()
+        c = candidate_sector.lower()
+
+        if f in c or c in f:
+            return True
+
+        aliases = cls._SECTOR_ALIASES.get(f, set())
+        if c in aliases or any(a in c for a in aliases):
+            return True
+
+        for alias_key, alias_set in cls._SECTOR_ALIASES.items():
+            if f in alias_set and (alias_key in c or c in alias_set):
+                return True
+
+        return False
+
+    # Common US state abbreviation mapping for location matching
+    _STATE_ABBREVS = {
+        "al": "alabama", "ak": "alaska", "az": "arizona", "ar": "arkansas",
+        "ca": "california", "co": "colorado", "ct": "connecticut", "de": "delaware",
+        "fl": "florida", "ga": "georgia", "hi": "hawaii", "id": "idaho",
+        "il": "illinois", "in": "indiana", "ia": "iowa", "ks": "kansas",
+        "ky": "kentucky", "la": "louisiana", "me": "maine", "md": "maryland",
+        "ma": "massachusetts", "mi": "michigan", "mn": "minnesota", "ms": "mississippi",
+        "mo": "missouri", "mt": "montana", "ne": "nebraska", "nv": "nevada",
+        "nh": "new hampshire", "nj": "new jersey", "nm": "new mexico", "ny": "new york",
+        "nc": "north carolina", "nd": "north dakota", "oh": "ohio", "ok": "oklahoma",
+        "or": "oregon", "pa": "pennsylvania", "ri": "rhode island", "sc": "south carolina",
+        "sd": "south dakota", "tn": "tennessee", "tx": "texas", "ut": "utah",
+        "vt": "vermont", "va": "virginia", "wa": "washington", "wv": "west virginia",
+        "wi": "wisconsin", "wy": "wyoming", "dc": "district of columbia",
+    }
+    _STATE_TO_ABBREV = {v: k for k, v in _STATE_ABBREVS.items()}
+
+    def _location_matches(self, query: str, candidate_location: str) -> bool:
+        """Smart location matching that handles different formats.
+        
+        Handles: 'New York' matching 'New York, NY', 'New York, New York, United States',
+        'NY' matching 'New York, NY', 'San Francisco' matching 'San Francisco, CA', etc.
+        """
+        q = query.lower().strip()
+        c = candidate_location.lower().strip()
+
+        # Direct substring match
+        if q in c or c in q:
+            return True
+
+        # Extract city from both
+        q_city = self._extract_city(q)
+        c_city = self._extract_city(c)
+
+        # City-to-city match
+        if q_city == c_city:
+            return True
+        if q_city in c_city or c_city in q_city:
+            return True
+
+        # Handle state abbreviations: 'NY' should match 'New York'
+        q_parts = [p.strip() for p in q.split(",")]
+        c_parts = [p.strip() for p in c.split(",")]
+
+        # Expand abbreviations in both query and candidate
+        q_expanded = set()
+        for part in q_parts:
+            q_expanded.add(part)
+            if part in self._STATE_ABBREVS:
+                q_expanded.add(self._STATE_ABBREVS[part])
+            if part in self._STATE_TO_ABBREV:
+                q_expanded.add(self._STATE_TO_ABBREV[part])
+
+        c_expanded = set()
+        for part in c_parts:
+            c_expanded.add(part)
+            if part in self._STATE_ABBREVS:
+                c_expanded.add(self._STATE_ABBREVS[part])
+            if part in self._STATE_TO_ABBREV:
+                c_expanded.add(self._STATE_TO_ABBREV[part])
+
+        # Check if any expanded query part matches any expanded candidate part
+        if q_expanded & c_expanded:
+            return True
+
+        return False
+
     def _apply_feed_filters(
         self,
         current_profile: Profile,
@@ -361,58 +520,47 @@ class DiscoveryFeedService:
         min_check_size: Optional[int] = None,
         max_check_size: Optional[int] = None,
     ) -> List[Profile]:
-        """Apply user-selected feed filters on top of eligibility/exclusions.
-        
-        This is intentionally conservative (filters only when values are provided)
-        and runs in Python to avoid complex JSON queries.
-        """
+        """Apply user-selected feed filters on top of eligibility/exclusions."""
         if not any([stages, sectors, location, min_check_size, max_check_size]):
             return candidates
 
         filtered: List[Profile] = []
 
-        normalized_stages = {s.lower() for s in (stages or [])}
-        normalized_sectors = {s.lower() for s in (sectors or [])}
-        location_query = location.lower().strip() if location else None
+        normalized_stages = [s.lower() for s in (stages or [])]
+        normalized_sectors = [s.lower() for s in (sectors or [])]
+        location_query = location.strip() if location else None
 
         for candidate in candidates:
             keep = True
 
-            # Stage filter: require overlap with candidate.focus_stages
+            # Stage filter: require at least one of the candidate's stages to match a filter stage
             if normalized_stages:
-                focus_stages = {s.lower() for s in (candidate.focus_stages or [])}
-                if not focus_stages.intersection(normalized_stages):
+                candidate_stages = [s.lower() for s in (candidate.focus_stages or [])]
+                stage_match = any(
+                    cs == fs or cs in fs or fs in cs
+                    for cs in candidate_stages
+                    for fs in normalized_stages
+                )
+                if not stage_match:
                     keep = False
 
-            # Sector filter: require overlap with candidate.focus_sectors
+            # Sector filter: substring matching (e.g. 'SaaS' matches 'Enterprise SaaS')
             if keep and normalized_sectors:
-                focus_sectors = {s.lower() for s in (candidate.focus_sectors or [])}
-                if not focus_sectors.intersection(normalized_sectors):
+                candidate_sectors = [s.lower() for s in (candidate.focus_sectors or [])]
+                sector_match = any(
+                    self._sector_matches(fs, cs)
+                    for cs in candidate_sectors
+                    for fs in normalized_sectors
+                )
+                if not sector_match:
                     keep = False
 
-            # Location filter: smart matching - extract city/primary location from query
+            # Location filter: smart city-level matching with abbreviation support
             if keep and location_query:
                 if not candidate.location:
                     keep = False
                 else:
-                    candidate_loc_lower = candidate.location.lower().strip()
-                    query_lower = location_query.lower().strip()
-                    
-                    # Extract the first significant part (usually the city) from the query
-                    # e.g., "New York, New York, United States" -> "new york"
-                    query_parts = [p.strip() for p in query_lower.split(',')]
-                    primary_query = query_parts[0] if query_parts else query_lower
-                    
-                    # Check if the primary location part matches any part of candidate location
-                    # This handles "New York" matching "New York, NY" or "New York, New York, United States"
-                    # or even just "NY" if the query is "New York"
-                    matches = (
-                        primary_query in candidate_loc_lower or
-                        query_lower in candidate_loc_lower or
-                        any(part in candidate_loc_lower for part in query_parts[:2] if len(part) > 2)
-                    )
-                    
-                    if not matches:
+                    if not self._location_matches(location_query, candidate.location):
                         keep = False
 
             # Check size filter: require some overlap between candidate check range and filter range
@@ -420,17 +568,12 @@ class DiscoveryFeedService:
                 cand_min = candidate.check_size_min
                 cand_max = candidate.check_size_max
 
-                # If candidate has no check size info, keep them (we don't want to over-filter)
                 if cand_min is not None or cand_max is not None:
-                    # Define candidate range, treating missing bounds as open-ended
                     cand_min_val = cand_min if cand_min is not None else 0
                     cand_max_val = cand_max if cand_max is not None else float("inf")
-
-                    # Define filter range
                     filt_min_val = min_check_size if min_check_size is not None else 0
                     filt_max_val = max_check_size if max_check_size is not None else float("inf")
 
-                    # Require overlap between [cand_min_val, cand_max_val] and [filt_min_val, filt_max_val]
                     if cand_max_val < filt_min_val or cand_min_val > filt_max_val:
                         keep = False
 
@@ -550,6 +693,12 @@ class DiscoveryFeedService:
         ).scalars().all()
         has_liked_you_set = set(likes_sent_to_viewer)
 
+        # Batch check online status via Redis
+        online_ids = get_online_profile_ids(profile_ids)
+
+        # Get last_login (last_active_at) for each profile via User
+        last_active_map = self._get_last_active_map(session, profile_ids)
+
         # Build profile cards
         profile_map = {p.id: p for p in profiles}
         cards = []
@@ -573,10 +722,23 @@ class DiscoveryFeedService:
                     compatibility_score=compatibility_score,
                     like_count=like_counts.get(profile.id, 0),
                     has_liked_you=profile.id in has_liked_you_set,
+                    is_online=profile.id in online_ids,
+                    last_active_at=last_active_map.get(profile.id),
                 )
             )
 
         return cards
+
+    def _get_last_active_map(self, session: Session, profile_ids: List[str]) -> dict:
+        """Get profile_id -> last_login ISO string for profiles with linked users."""
+        if not profile_ids:
+            return {}
+        last_active_map = {}
+        users = session.exec(select(User).where(User.profile_id.in_(profile_ids))).scalars().all()
+        for u in users:
+            if u.profile_id and u.last_login:
+                last_active_map[u.profile_id] = u.last_login.isoformat()
+        return last_active_map
 
     def _get_excluded_profile_ids(self, session: Session, profile_id: str) -> Set[str]:
         """Get IDs of profiles to exclude from feed (already matched or liked/passed)."""
@@ -700,6 +862,70 @@ class DiscoveryFeedService:
             "focus_markets": profile.focus_markets or [],
             "created_at": profile.created_at,
             "updated_at": profile.updated_at,
+        }
+
+    def compute_stable_matching(self, session: Session) -> dict:
+        """
+        Run Gale-Shapley (investors propose to founders) using compatibility scores,
+        then cache the result so the discovery feed can show stable matches first.
+        Only includes profiles that are not already in an active match (available pool).
+        Returns {"investors": n, "founders": n, "pairs": n, "excluded_matched": n}.
+        """
+        investor_profiles = session.exec(
+            select(Profile).where(
+                and_(
+                    Profile.role == "investor",
+                    Profile.full_name != "Upload Test User",
+                )
+            )
+        ).scalars().all()
+        founder_profiles = session.exec(
+            select(Profile).where(
+                and_(
+                    Profile.role == "founder",
+                    Profile.full_name != "Upload Test User",
+                )
+            )
+        ).scalars().all()
+
+        # Exclude profiles that are already in an active match (so only "available" users are in the pool)
+        matches = session.exec(
+            select(Match).where(Match.status == "active")
+        ).scalars().all()
+        matched_investor_ids = {m.investor_id for m in matches}
+        matched_founder_ids = {m.founder_id for m in matches}
+        investor_profiles = [p for p in investor_profiles if p.id not in matched_investor_ids]
+        founder_profiles = [p for p in founder_profiles if p.id not in matched_founder_ids]
+        excluded_count = len(matched_investor_ids | matched_founder_ids)
+
+        investor_ids = [p.id for p in investor_profiles]
+        founder_ids = [p.id for p in founder_profiles]
+        if not investor_ids or not founder_ids:
+            return {
+                "investors": len(investor_ids),
+                "founders": len(founder_ids),
+                "pairs": 0,
+                "excluded_matched": excluded_count,
+            }
+
+        profile_by_id = {p.id: p for p in investor_profiles + founder_profiles}
+
+        def score_fn(proposer_id: str, receiver_id: str) -> float:
+            a, b = profile_by_id.get(proposer_id), profile_by_id.get(receiver_id)
+            if not a or not b:
+                return 0.0
+            return self._compute_compatibility_score(session, a, b)
+
+        proposer_prefs, receiver_prefs = build_prefs_from_scores(
+            investor_ids, founder_ids, score_fn
+        )
+        matching = gale_shapley(proposer_prefs, receiver_prefs)
+        cache_service.set_stable_matches(matching, ttl=self.COMPATIBILITY_CACHE_TTL)
+        return {
+            "investors": len(investor_ids),
+            "founders": len(founder_ids),
+            "pairs": len(matching),
+            "excluded_matched": excluded_count,
         }
 
 

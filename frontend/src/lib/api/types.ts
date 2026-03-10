@@ -8,11 +8,13 @@ export interface SignUpRequest {
   password: string;
   role: 'investor' | 'founder';
   full_name: string;
+  turnstile_token?: string;
 }
 
 export interface LoginRequest {
   email: string;
   password: string;
+  turnstile_token?: string;
 }
 
 export interface TokenResponse {
@@ -22,10 +24,17 @@ export interface TokenResponse {
   expires_in: number;
 }
 
+export interface OAuthAuthorizationResponse {
+  authorization_url: string;
+  state: string;
+}
+
 export interface UserResponse {
   id: string;
   email: string;
   profile_id: string | null;
+  full_name: string | null;
+  avatar_url: string | null;
   is_active: boolean;
   is_verified: boolean;
   is_admin: boolean;
@@ -54,6 +63,7 @@ export interface BaseProfile {
   };
   created_at: string;
   updated_at: string;
+  last_active_at?: string | null;
   // Investor-specific fields
   firm?: string;
   check_size_min?: number;

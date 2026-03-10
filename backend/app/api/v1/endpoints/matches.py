@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from datetime import datetime
-from fastapi import APIRouter, Depends, Query, Request, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import Session
 
+from app.core.dependencies import get_current_user_profile
 from app.core.exceptions import AppException, ValidationError
 from app.core.rate_limit import limiter
 from app.db.session import get_session
+from app.models.profile import Profile
 from app.schemas.match import DailyLimitsResponse, LikePayload, MatchRecord, PassPayload
 from app.services.matching import matching_service
 
@@ -30,10 +32,11 @@ router = APIRouter()
     - `status: "pending"` if one-way like (waiting for response)
     - `match` object is included if matched
     
+    **Authentication:** Bearer token required. The sender is the authenticated user's profile.
+
     **Example Request:**
     ```json
     {
-        "sender_id": "123e4567-e89b-12d3-a456-426614174000",
         "recipient_id": "123e4567-e89b-12d3-a456-426614174001",
         "note": "Love your vision! Let's chat."
     }
@@ -92,36 +95,45 @@ router = APIRouter()
             }
         },
         400: {"description": "Invalid like payload (e.g., cannot like yourself)"},
+        401: {"description": "Authentication required"},
     },
 )
 # Note: Rate limiting temporarily removed due to slowapi/FastAPI body parsing conflict
 # TODO: Re-implement with middleware-based rate limiting
 def send_like(
     payload: LikePayload,
+    profile: Profile = Depends(get_current_user_profile),
     session: Session = Depends(get_session),
 ) -> dict:
-    """Send a like to another profile. Returns match if mutual."""
+    """Send a like to another profile. Sender is the authenticated user. Returns match if mutual."""
     import logging
     import traceback
     import sys
-    
+
     logger = logging.getLogger(__name__)
-    
-    # Validate input first
-    if not payload.sender_id or not payload.recipient_id:
+
+    if not payload.recipient_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="sender_id and recipient_id are required",
+            detail="recipient_id is required",
         )
-    
-    if payload.sender_id == payload.recipient_id:
+    if profile.id == payload.recipient_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot like yourself",
         )
-    
+
+    # Identity from token only
+    authenticated_payload = LikePayload(
+        sender_id=profile.id,
+        recipient_id=payload.recipient_id,
+        note=payload.note,
+        prompt_id=payload.prompt_id,
+        like_type=payload.like_type,
+    )
+
     try:
-        match = matching_service.record_like(session, payload)
+        match = matching_service.record_like(session, authenticated_payload)
 
         # Convert MatchRecord to dict for JSON serialization
         if match:
@@ -185,9 +197,12 @@ def send_like(
     
     Use this to populate the matches/conversations view.
     
+    **Authentication:** Bearer token required.
+
     **Example Request:**
     ```
-    GET /api/v1/matches?profile_id=123e4567-e89b-12d3-a456-426614174000
+    GET /api/v1/matches
+    Authorization: Bearer <token>
     ```
     
     **Example Response:**
@@ -233,14 +248,15 @@ def send_like(
                 }
             }
         },
+        401: {"description": "Authentication required"},
     },
 )
 def list_matches(
-    profile_id: str = Query(..., description="ID of the user requesting matches"),
+    profile: Profile = Depends(get_current_user_profile),
     session: Session = Depends(get_session),
 ) -> list[MatchRecord]:
-    """List all matches for a user."""
-    return matching_service.list_matches(session, profile_id)
+    """List all matches for the authenticated user."""
+    return matching_service.list_matches(session, profile.id)
 
 
 @router.post(
@@ -252,10 +268,11 @@ def list_matches(
     Passed profiles won't be shown again for 30 days, similar to Hinge's behavior.
     This helps curate the discovery feed and avoid showing unwanted profiles.
 
+    **Authentication:** Bearer token required. The user is the authenticated profile.
+
     **Example Request:**
     ```json
     {
-        "user_id": "123e4567-e89b-12d3-a456-426614174000",
         "passed_profile_id": "123e4567-e89b-12d3-a456-426614174001"
     }
     ```
@@ -263,10 +280,11 @@ def list_matches(
 )
 def pass_on_profile(
     payload: PassPayload,
+    profile: Profile = Depends(get_current_user_profile),
     session: Session = Depends(get_session),
 ) -> dict:
-    """Record a pass (X) on a profile."""
-    matching_service.record_pass(session, payload.user_id, payload.passed_profile_id)
+    """Record a pass (X) on a profile. User is the authenticated profile."""
+    matching_service.record_pass(session, profile.id, payload.passed_profile_id)
     return {"status": "success", "message": "Profile passed"}
 
 
@@ -300,13 +318,17 @@ def pass_on_profile(
     }
     ```
     """,
+    responses={
+        200: {"description": "Daily limits returned successfully"},
+        401: {"description": "Authentication required"},
+    },
 )
 def get_daily_limits(
-    profile_id: str = Query(..., description="ID of the user"),
+    profile: Profile = Depends(get_current_user_profile),
     session: Session = Depends(get_session),
 ) -> DailyLimitsResponse:
-    """Get daily limits status for a user."""
-    limits = matching_service.get_daily_limits(session, profile_id)
+    """Get daily limits status for the authenticated user."""
+    limits = matching_service.get_daily_limits(session, profile.id)
     return DailyLimitsResponse(**limits)
 
 

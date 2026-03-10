@@ -1,5 +1,5 @@
 /**
- * Login page - Redesigned with elegant styling
+ * Login page – Contra-inspired clean layout matching signup
  */
 
 'use client';
@@ -9,14 +9,28 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
+import { authApi } from '@/lib/api/auth';
+import { Turnstile } from '@/components/ui/Turnstile';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileEnabled, setTurnstileEnabled] = useState(true);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
   const router = useRouter();
+
+  const handleGoogleSignIn = async () => {
+    try {
+      const redirectUri = `${window.location.origin}/callback/google`;
+      const { authorization_url } = await authApi.getGoogleAuthUrl(redirectUri);
+      window.location.href = authorization_url;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start Google sign-in.');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,7 +38,7 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      await login(email, password);
+      await login(email, password, turnstileToken || undefined);
       router.push('/discover');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed. Please try again.');
@@ -34,220 +48,116 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden"
-      style={{ background: 'linear-gradient(135deg, #0a0b14 0%, #0f1419 50%, #0a0b14 100%)' }}
-    >
-      {/* Animated background orbs */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <motion.div 
-          className="absolute w-[500px] h-[500px] rounded-full opacity-20"
-          style={{
-            background: 'radial-gradient(circle, rgba(251, 191, 36, 0.15) 0%, transparent 70%)',
-            top: '-10%',
-            right: '-10%',
-          }}
-          animate={{ 
-            scale: [1, 1.1, 1],
-            opacity: [0.15, 0.25, 0.15],
-          }}
-          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-        />
-        <motion.div 
-          className="absolute w-[400px] h-[400px] rounded-full opacity-15"
-          style={{
-            background: 'radial-gradient(circle, rgba(30, 64, 175, 0.2) 0%, transparent 70%)',
-            bottom: '-5%',
-            left: '-5%',
-          }}
-          animate={{ 
-            scale: [1, 1.15, 1],
-            opacity: [0.1, 0.2, 0.1],
-          }}
-          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-        />
-      </div>
+    <div className="min-h-screen flex" style={{ background: '#fafafa' }}>
+      {/* Left panel – form */}
+      <div className="flex-1 flex flex-col justify-center px-8 md:px-16 lg:px-24 py-12 max-w-[600px]">
+        <Link href="/" className="text-2xl font-semibold tracking-tight text-slate-900 mb-12 inline-block w-fit">
+          Startr
+        </Link>
 
-      {/* Decorative circles */}
-      <motion.div 
-        className="absolute top-20 left-20 w-32 h-32 border border-amber-500/10 rounded-full"
-        animate={{ rotate: 360 }}
-        transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
-      />
-      <motion.div 
-        className="absolute bottom-20 right-20 w-24 h-24 border border-amber-500/20 rounded-full"
-        animate={{ rotate: -360 }}
-        transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
-      />
-      
-      {/* Floating dots */}
-      {[...Array(5)].map((_, i) => (
         <motion.div
-          key={i}
-          className="absolute w-1 h-1 bg-amber-400/30 rounded-full"
-          style={{
-            top: `${20 + i * 15}%`,
-            left: `${10 + i * 18}%`,
-          }}
-          animate={{
-            y: [0, -20, 0],
-            opacity: [0.3, 0.6, 0.3],
-          }}
-          transition={{
-            duration: 3 + i,
-            repeat: Infinity,
-            ease: "easeInOut",
-            delay: i * 0.5,
-          }}
-        />
-      ))}
-
-      {/* Main content */}
-      <motion.div 
-        className="relative z-10 w-full max-w-md px-6"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-      >
-        {/* Logo/Brand */}
-        <motion.div 
-          className="text-center mb-10"
-          initial={{ opacity: 0, y: -20 }}
+          initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+          transition={{ duration: 0.4 }}
         >
-          <Link href="/" className="inline-flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-amber-400 to-yellow-500 rounded-lg flex items-center justify-center font-bold text-sm text-[#0a0b14]">
-              S
-            </div>
-            <span className="text-xl font-semibold tracking-tight bg-gradient-to-r from-amber-200 to-yellow-100 bg-clip-text text-transparent">
-              Startr
-            </span>
-          </Link>
-        </motion.div>
+          <h1 className="text-3xl font-semibold text-slate-900 mb-2">Welcome back</h1>
+          <p className="text-slate-500 text-sm mb-8">Sign in to continue where you left off.</p>
 
-        {/* Card */}
-        <motion.div 
-          className="backdrop-blur-xl rounded-2xl p-8 border border-white/10"
-          style={{
-            background: 'linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255,255,255,0.1)',
-          }}
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.3, duration: 0.5 }}
-        >
-          {/* Header */}
-          <div className="text-center mb-8">
-            <motion.div 
-              className="flex items-center justify-center gap-3 mb-3"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4 }}
-            >
-              <div className="w-8 h-[2px] bg-gradient-to-r from-transparent to-amber-400/60" />
-              <span className="text-amber-400/80 text-xs tracking-widest uppercase">Welcome back</span>
-              <div className="w-8 h-[2px] bg-gradient-to-l from-transparent to-amber-400/60" />
-            </motion.div>
-            <h2 className="text-2xl font-semibold text-white">Sign in to your account</h2>
+          {/* Google button */}
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            className="w-full flex items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors mb-6"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+            Continue with Google
+          </button>
+
+          <div className="flex items-center gap-4 mb-6">
+            <div className="flex-1 h-px bg-slate-200" />
+            <span className="text-xs text-slate-400 uppercase tracking-wider font-medium">or</span>
+            <div className="flex-1 h-px bg-slate-200" />
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@work-email.com"
+              required
+              disabled={isLoading}
+              autoComplete="email"
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-300 transition-colors"
+            />
+
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+              required
+              disabled={isLoading}
+              autoComplete="current-password"
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-300 transition-colors"
+            />
+
+            <Turnstile
+              onVerify={setTurnstileToken}
+              onExpire={() => setTurnstileToken('')}
+              onError={() => setTurnstileToken('')}
+              onReady={(enabled) => setTurnstileEnabled(enabled)}
+              className="flex justify-center my-2"
+            />
+
             {error && (
-              <motion.div 
-                className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm"
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-              >
-                {error}
-              </motion.div>
+              <p className="text-red-500 text-sm">{error}</p>
             )}
 
-            <div className="space-y-2">
-              <label className="block text-sm text-slate-400 ml-1">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={isLoading}
-                autoComplete="email"
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 transition-all duration-200"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="block text-sm text-slate-400 ml-1">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={isLoading}
-                autoComplete="current-password"
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 transition-all duration-200"
-              />
-            </div>
-
-            <motion.button
+            <button
               type="submit"
-              disabled={isLoading}
-              className="w-full py-3.5 px-6 rounded-xl font-semibold text-[#0a0b14] relative overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-300 hover:to-yellow-400 transition-all shadow-lg shadow-amber-500/20"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              disabled={isLoading || !email.trim() || !password || (turnstileEnabled && !turnstileToken)}
+              className="w-full rounded-xl bg-slate-900 text-white py-3 text-sm font-medium hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              <span className="relative z-10 flex items-center justify-center gap-2">
-                {isLoading ? (
-                  <>
-                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
-                    Signing in...
-                  </>
-                ) : (
-                  'Sign In'
-                )}
-              </span>
-            </motion.button>
+              {isLoading ? 'Signing in...' : 'Sign in'}
+            </button>
           </form>
 
-          {/* Divider */}
-          <div className="flex items-center gap-4 my-6">
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-            <span className="text-slate-500 text-xs">or</span>
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-          </div>
-
-          {/* Sign up link */}
-          <p className="text-center text-slate-400 text-sm">
+          <p className="text-sm text-slate-500 mt-6 text-center">
             Don&apos;t have an account?{' '}
-            <Link 
-              href="/signup" 
-              className="text-amber-400 hover:text-amber-300 font-medium transition-colors"
-            >
-              Create one
+            <Link href="/signup" className="font-medium text-slate-900 hover:underline">
+              Sign up
             </Link>
           </p>
         </motion.div>
+      </div>
 
-        {/* Back to home */}
-        <motion.div 
-          className="text-center mt-8"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.6 }}
+      {/* Right panel – branding */}
+      <div className="hidden lg:flex flex-1 items-center justify-center bg-slate-50 border-l border-slate-100 px-12">
+        <motion.div
+          className="max-w-md"
+          initial={{ opacity: 0, x: 24 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
         >
-          <Link 
-            href="/" 
-            className="text-slate-500 hover:text-slate-400 text-sm flex items-center justify-center gap-2 transition-colors"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="rotate-180">
-              <path d="M6 12L10 8L6 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            Back to home
-          </Link>
+          <div className="mb-8">
+            <div className="w-1 h-10 bg-slate-900 rounded-full mb-6" />
+            <p className="text-xl text-slate-700 leading-relaxed font-light">
+              &ldquo;The best fundraising relationships start with real compatibility — not cold emails.&rdquo;
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 mb-12">
+            <div className="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center text-white text-sm font-semibold">
+              S
+            </div>
+            <div>
+              <p className="text-sm font-medium text-slate-900">Startr</p>
+              <p className="text-xs text-slate-500">Where founders meet their perfect investor</p>
+            </div>
+          </div>
         </motion.div>
-      </motion.div>
+      </div>
     </div>
   );
 }

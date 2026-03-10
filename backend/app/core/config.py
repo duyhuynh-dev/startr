@@ -62,6 +62,10 @@ class Settings(BaseSettings):
     google_client_id: Optional[str] = None
     google_client_secret: Optional[str] = None
     
+    # Cloudflare Turnstile
+    turnstile_site_key: Optional[str] = None
+    turnstile_secret_key: Optional[str] = None
+    
     # Email Configuration (Optional - for password reset and verification)
     smtp_host: Optional[str] = None  # e.g., "smtp.gmail.com"
     smtp_port: int = 587
@@ -96,6 +100,10 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in v.split(",") if origin.strip()]
         return v
     
+    # Gale-Shapley stable matching (discovery feed)
+    stable_matching_interval_minutes: int = 15  # Recompute stable matching every N minutes (0 = only at startup)
+    stable_matching_enabled: bool = True  # Set False to disable periodic recompute
+
     # Token expiration
     password_reset_token_expire_hours: int = 24  # Password reset tokens valid for 24 hours
     email_verification_token_expire_hours: int = 48  # Email verification tokens valid for 48 hours

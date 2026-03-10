@@ -62,6 +62,7 @@ class BaseProfile(BaseModel):
     focus_markets: List[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+    last_active_at: Optional[str] = Field(None, description="ISO timestamp of last login/activity")
 
     @property
     def profile_completeness(self) -> float:

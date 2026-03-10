@@ -1,14 +1,25 @@
 /**
- * Profile Card Component - Display profile in discovery feed
- * Enhanced with smooth animations and transitions
+ * Profile Card – Clean light theme for Contra-style discover feed
  */
 
 'use client';
 
 import { motion } from 'framer-motion';
-import { Button, Card, CardContent } from '@/components/ui';
+import Link from 'next/link';
 import type { ProfileCard as ProfileCardType } from '@/lib/api/feed';
-import { cardHover } from '@/lib/animations';
+
+function formatLastActive(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return d.toLocaleDateString();
+}
 
 interface ProfileCardProps {
   profile: ProfileCardType;
@@ -23,143 +34,185 @@ interface ProfileCardProps {
 
 export function ProfileCard({ profile, onLike, onPass, onViewDiligence, dailyLimits }: ProfileCardProps) {
   return (
-    <motion.div
-      variants={cardHover}
-      initial="rest"
-      whileHover="hover"
-      className="w-full mb-24"
-    >
-      <Card className="mb-0">
-          <CardContent className="p-6">
-            {/* Header */}
-            <motion.div 
-              className="mb-6"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1, duration: 0.3 }}
-            >
-              <h2 className="text-2xl font-bold text-slate-100 mb-2">{profile.full_name}</h2>
-              {profile.headline && (
-                <p className="text-lg text-slate-100">{profile.headline}</p>
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="p-6">
+        {/* Header */}
+        <div className="flex items-start justify-between mb-5">
+          <div className="flex items-center gap-4">
+            <div className="relative shrink-0">
+              {profile.avatar_url ? (
+                <img
+                  src={profile.avatar_url}
+                  alt=""
+                  className="w-14 h-14 rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center text-lg font-semibold text-slate-700">
+                  {profile.full_name?.charAt(0)?.toUpperCase() || '?'}
+                </div>
               )}
-              {profile.location && (
-                <p className="text-sm text-slate-100 mt-1">📍 {profile.location}</p>
+              {profile.is_online && (
+                <span
+                  className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white"
+                  title="Online now"
+                />
               )}
-            </motion.div>
-
-            {/* Compatibility Score - Only show if > 0 */}
-            {profile.compatibility_score != null && profile.compatibility_score > 0 && (
-              <motion.div
-                className="mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.2, duration: 0.3 }}
-              >
-                <p className="text-sm text-slate-100">
-                  Compatibility: <span className="font-semibold">{Math.round(profile.compatibility_score)}%</span>
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">{profile.full_name}</h2>
+              {(profile.is_online || profile.last_active_at) && (
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {profile.is_online ? 'Online now' : profile.last_active_at ? `Active ${formatLastActive(profile.last_active_at)}` : null}
                 </p>
-              </motion.div>
-            )}
+              )}
+              {profile.headline && (
+                <p className="text-sm text-slate-500">{profile.headline}</p>
+              )}
+              <div className="flex items-center gap-3 mt-1">
+                {profile.location && (
+                  <span className="text-xs text-slate-400">{profile.location}</span>
+                )}
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-slate-100 text-slate-600">
+                  {profile.role}
+                </span>
+              </div>
+            </div>
+          </div>
 
-            {/* Prompts */}
-            {profile.prompts && profile.prompts.length > 0 && (
-              <motion.div
-                className="mb-6 space-y-4"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.3, duration: 0.3 }}
-              >
-                {profile.prompts.map((prompt, idx) => (
-                  <motion.div
-                    key={prompt.prompt_id || idx}
-                    className="border-l-4 border-blue-500 pl-4"
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.3 + idx * 0.1, duration: 0.3 }}
-                  >
-                    <p className="text-sm text-slate-100">{prompt.content}</p>
-                  </motion.div>
-                ))}
-              </motion.div>
-            )}
+          {profile.compatibility_score != null && profile.compatibility_score > 0 && (
+            <div className="text-right shrink-0">
+              <div className="text-2xl font-bold text-slate-900">{Math.round(profile.compatibility_score)}%</div>
+              <div className="text-[10px] uppercase tracking-wider text-slate-400 font-medium">match</div>
+            </div>
+          )}
+        </div>
 
-            {/* Role-specific info */}
-            <motion.div
-              className="mb-6 space-y-2"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4, duration: 0.3 }}
+        {/* Prompts */}
+        {profile.prompts && profile.prompts.length > 0 && (
+          <div className="mb-5 space-y-3">
+            {profile.prompts.map((prompt, idx) => (
+              <div key={prompt.prompt_id || idx} className="bg-slate-50 rounded-xl p-4">
+                <p className="text-sm text-slate-700 leading-relaxed">{prompt.content}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Role-specific details */}
+        <div className="space-y-0">
+          {profile.role === 'investor' && (
+            <div className="grid grid-cols-2 gap-3">
+              {profile.firm && (
+                <div className="bg-slate-50 rounded-xl px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium mb-0.5">Firm</p>
+                  <p className="text-sm font-medium text-slate-900">{profile.firm}</p>
+                </div>
+              )}
+              {profile.check_size_min && profile.check_size_max && (
+                <div className="bg-slate-50 rounded-xl px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium mb-0.5">Check size</p>
+                  <p className="text-sm font-medium text-slate-900">
+                    ${(profile.check_size_min / 1000).toFixed(0)}k – ${(profile.check_size_max / 1000).toFixed(0)}k
+                  </p>
+                </div>
+              )}
+              {profile.focus_sectors && profile.focus_sectors.length > 0 && (
+                <div className="bg-slate-50 rounded-xl px-4 py-3 col-span-2">
+                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium mb-1.5">Sectors</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {profile.focus_sectors.map((s) => (
+                      <span key={s} className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-xs text-slate-700">{s}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {profile.focus_stages && profile.focus_stages.length > 0 && (
+                <div className="bg-slate-50 rounded-xl px-4 py-3 col-span-2">
+                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium mb-1.5">Stages</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {profile.focus_stages.map((s) => (
+                      <span key={s} className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-xs text-slate-700">{s}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {profile.role === 'founder' && (
+            <div className="grid grid-cols-2 gap-3">
+              {profile.company_name && (
+                <div className="bg-slate-50 rounded-xl px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium mb-0.5">Company</p>
+                  <p className="text-sm font-medium text-slate-900">{profile.company_name}</p>
+                </div>
+              )}
+              {profile.revenue_run_rate != null && profile.revenue_run_rate > 0 && (
+                <div className="bg-slate-50 rounded-xl px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium mb-0.5">MRR</p>
+                  <p className="text-sm font-medium text-slate-900">${profile.revenue_run_rate.toLocaleString()}</p>
+                </div>
+              )}
+              {profile.team_size != null && profile.team_size > 0 && (
+                <div className="bg-slate-50 rounded-xl px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium mb-0.5">Team</p>
+                  <p className="text-sm font-medium text-slate-900">{profile.team_size} people</p>
+                </div>
+              )}
+              {profile.runway_months != null && profile.runway_months > 0 && (
+                <div className="bg-slate-50 rounded-xl px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium mb-0.5">Runway</p>
+                  <p className="text-sm font-medium text-slate-900">{profile.runway_months} months</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* View profile & Due Diligence */}
+        <div className="mt-4 flex items-center gap-4">
+          <Link
+            href={`/profile/${profile.id}`}
+            className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-700 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            View full profile
+          </Link>
+          {onViewDiligence && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onViewDiligence(); }}
+              className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-700 transition-colors"
             >
-              {profile.role === 'investor' && (
-                <>
-                  {profile.firm && (
-                    <p className="text-sm text-slate-100">
-                      <span className="font-medium">Firm:</span> {profile.firm}
-                    </p>
-                  )}
-                  {profile.check_size_min && profile.check_size_max && (
-                    <p className="text-sm text-slate-100">
-                      <span className="font-medium">Check Size:</span> ${profile.check_size_min.toLocaleString()} - ${profile.check_size_max.toLocaleString()}
-                    </p>
-                  )}
-                  {profile.focus_sectors && profile.focus_sectors.length > 0 && (
-                    <p className="text-sm text-slate-100">
-                      <span className="font-medium">Sectors:</span> {profile.focus_sectors.join(', ')}
-                    </p>
-                  )}
-                  {profile.focus_stages && profile.focus_stages.length > 0 && (
-                    <p className="text-sm text-slate-100">
-                      <span className="font-medium">Stages:</span> {profile.focus_stages.join(', ')}
-                    </p>
-                  )}
-                </>
-              )}
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              View Due Diligence
+            </button>
+          )}
+        </div>
+      </div>
 
-              {profile.role === 'founder' && (
-                <>
-                  {profile.company_name && (
-                    <p className="text-sm text-slate-100">
-                      <span className="font-medium">Company:</span> {profile.company_name}
-                    </p>
-                  )}
-                  {profile.revenue_run_rate != null && profile.revenue_run_rate > 0 && (
-                    <p className="text-sm text-slate-100">
-                      <span className="font-medium">Monthly Revenue:</span> ${profile.revenue_run_rate.toLocaleString()}
-                    </p>
-                  )}
-                  {profile.team_size != null && profile.team_size > 0 && (
-                    <p className="text-sm text-slate-100">
-                      <span className="font-medium">Team Size:</span> {profile.team_size} people
-                    </p>
-                  )}
-                  {profile.runway_months != null && profile.runway_months > 0 && (
-                    <p className="text-sm text-slate-100">
-                      <span className="font-medium">Runway:</span> {profile.runway_months} months
-                    </p>
-                  )}
-                  
-                  {/* Due Diligence Button */}
-                  {onViewDiligence && (
-                    <motion.button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onViewDiligence();
-                      }}
-                      className="mt-3 flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-sm font-medium rounded-lg transition-all shadow-lg shadow-indigo-500/25"
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                      </svg>
-                      View Due Diligence
-                    </motion.button>
-                  )}
-                </>
-              )}
-            </motion.div>
-          </CardContent>
-        </Card>
-      </motion.div>
+      {/* Action bar at bottom of card */}
+      <div className="border-t border-slate-100 px-6 py-4 flex gap-3">
+        <button
+          type="button"
+          onClick={onPass}
+          className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+        >
+          Pass
+        </button>
+        <button
+          type="button"
+          onClick={() => onLike('standard')}
+          disabled={(dailyLimits?.standard_likes_remaining ?? 1) <= 0}
+          className="flex-1 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          Interested
+        </button>
+      </div>
+    </div>
   );
 }

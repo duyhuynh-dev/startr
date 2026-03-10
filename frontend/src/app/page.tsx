@@ -25,8 +25,8 @@ export default function HomePage() {
   // Show loading while checking auth
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#0a0b14]">
-        <LoadingSpinner size="lg" />
+      <div className="flex items-center justify-center min-h-screen" style={{ background: '#fafafa' }}>
+        <div className="animate-spin w-8 h-8 border-2 border-slate-200 border-t-slate-900 rounded-full" />
       </div>
     );
   }
@@ -38,9 +38,9 @@ export default function HomePage() {
 
   // Fallback loading state during redirect
   return (
-    <div className="flex items-center justify-center min-h-screen bg-[#0a0b14]">
-      <LoadingSpinner size="lg" />
-    </div>
+    <div className="flex items-center justify-center min-h-screen" style={{ background: '#fafafa' }}>
+        <div className="animate-spin w-8 h-8 border-2 border-slate-200 border-t-slate-900 rounded-full" />
+      </div>
   );
 }
 

@@ -155,6 +155,12 @@ def get_profile(profile_id: str, session: Session = Depends(get_session)) -> Bas
     profile = profile_cache_service.get_profile(profile_id, session)
     if not profile:
         raise NotFoundError(resource="Profile", identifier=profile_id)
+    # Add last_active_at from User.last_login
+    user = session.exec(select(User).where(User.profile_id == profile_id)).scalars().first()
+    if user and user.last_login:
+        profile_dict = profile.model_dump()
+        profile_dict["last_active_at"] = user.last_login.isoformat()
+        return BaseProfile(**profile_dict)
     return profile
 
 

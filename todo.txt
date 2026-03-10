@@ -1,0 +1,9 @@
+Cloudfare key:
+
+For production: You do need to create a Turnstile widget in Cloudflare:
+Go to Cloudflare Dashboard → Turnstile
+Click Add site
+Enter your domain (e.g. yourdomain.com; for production, add both localhost and your production domain)
+Choose Managed (recommended for most cases)
+Click Create and copy the Site Key and Secret Key
+Replace the test keys in your .env with these values

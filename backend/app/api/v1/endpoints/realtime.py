@@ -136,7 +136,8 @@ async def websocket_endpoint(
                         logger.error(f"Error sending typing indicator: {e}")
                     
             elif message_type == "ping":
-                # Heartbeat/ping
+                from app.services.presence_service import set_online
+                set_online(profile_id)
                 await websocket.send_json({
                     "type": "pong",
                     "timestamp": datetime.utcnow().isoformat()
