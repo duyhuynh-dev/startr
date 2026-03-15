@@ -5,6 +5,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { profilesApi, type ProfileUpdate } from '@/lib/api/profiles';
@@ -198,7 +199,10 @@ export default function ProfilePage() {
               </div>
             ) : !profile ? (
               <div className="text-center py-24">
-                <p className="text-red-400 text-sm">{error || 'Profile not found'}</p>
+                <p className="text-red-400 text-sm mb-4">{error || 'Profile not found'}</p>
+                <Link href="/onboarding" className="text-sm font-medium text-amber-400 hover:text-amber-300 hover:underline">
+                  Complete your profile
+                </Link>
               </div>
             ) : (
               <div className="space-y-6">
@@ -463,11 +467,15 @@ export default function ProfilePage() {
                   <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-6">
                     <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-4">Prompts</h3>
                     <div className="space-y-3">
-                      {profile.prompts.map((prompt, idx) => (
-                        <div key={idx} className="bg-white/3 rounded-xl p-4">
-                          <p className="text-sm text-white/70 leading-relaxed">{prompt.content}</p>
-                        </div>
-                      ))}
+                      {profile.prompts.map((prompt, idx) => {
+                        const text = (prompt.content ?? '').trim();
+                        if (!text) return null;
+                        return (
+                          <div key={idx} className="bg-white/3 rounded-xl p-4">
+                            <p className="text-sm text-white/70 leading-relaxed">{text}</p>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

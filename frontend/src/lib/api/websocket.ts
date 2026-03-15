@@ -126,7 +126,7 @@ export class MessagingWebSocketClient {
       this.ws = new WebSocket(url);
 
       this.ws.onopen = () => {
-        console.log('WebSocket connected successfully for profile:', this.profileId);
+        if (process.env.NODE_ENV === 'development') console.log('WebSocket connected successfully for profile:', this.profileId);
         this.reconnectAttempts = 0;
         this.startHeartbeat();
         this.emit('connected', {});
@@ -135,35 +135,34 @@ export class MessagingWebSocketClient {
 
       this.ws.onmessage = (event) => {
         try {
-          console.log('WebSocket received raw message:', event.data);
           const message = JSON.parse(event.data) as MessagingWebSocketMessage;
-          console.log('WebSocket parsed message:', message);
+          if (process.env.NODE_ENV === 'development') console.log('WebSocket parsed message:', message.type);
           this.handleMessage(message);
         } catch (error) {
-          console.error('Failed to parse WebSocket message:', error, event.data);
+          if (process.env.NODE_ENV === 'development') console.error('Failed to parse WebSocket message:', error, event.data);
         }
       };
 
       this.ws.onclose = (event) => {
-        console.log('WebSocket closed:', event.code, event.reason);
+        if (process.env.NODE_ENV === 'development') console.log('WebSocket closed:', event.code, event.reason);
         this.stopHeartbeat();
         this.emit('disconnected', {});
         this.attemptReconnect();
       };
 
-      this.ws.onerror = (error) => {
-        console.error('WebSocket connection error:', error);
-        this.emit('error', { error });
-        reject(error);
+      this.ws.onerror = () => {
+        const msg = 'WebSocket connection failed';
+        if (process.env.NODE_ENV === 'development') console.warn(msg);
+        this.emit('error', { error: msg });
+        reject(new Error(msg));
       };
     });
   }
 
   private handleMessage(message: MessagingWebSocketMessage) {
-    console.log('Handling WebSocket message type:', message.type, message);
+    if (process.env.NODE_ENV === 'development') console.log('Handling WebSocket message type:', message.type);
     switch (message.type) {
       case 'new_message':
-        console.log('Emitting new_message event:', message.message);
         this.emit('new_message', message.message);
         break;
       case 'message_delivered':
@@ -217,7 +216,7 @@ export class MessagingWebSocketClient {
 
   private attemptReconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('Max reconnection attempts reached');
+      if (process.env.NODE_ENV === 'development') console.error('Max reconnection attempts reached');
       return;
     }
 
@@ -225,8 +224,8 @@ export class MessagingWebSocketClient {
     const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), WS_MAX_RECONNECT_DELAY_MS); // Exponential backoff, max 30s
 
     this.reconnectTimeout = setTimeout(() => {
-      this.connect().catch((error) => {
-        console.error('Reconnection failed:', error);
+      this.connect().catch((err) => {
+        if (process.env.NODE_ENV === 'development') console.warn(err instanceof Error ? err.message : 'Reconnection failed');
       });
     }, delay);
   }
@@ -271,7 +270,7 @@ export class MessagingWebSocketClient {
       try {
         callback(data);
       } catch (error) {
-        console.error(`Error in ${event} listener:`, error);
+        if (process.env.NODE_ENV === 'development') console.error(`Error in ${event} listener:`, error);
       }
     });
   }

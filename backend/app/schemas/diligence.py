@@ -30,6 +30,8 @@ class DiligenceSummary(BaseModel):
     metrics: List[Metric] = Field(default_factory=list)
     risks: List[RiskFlag] = Field(default_factory=list)
     narrative: str | None = None
+    strengths: List[str] = Field(default_factory=list, description="LLM-generated strengths / what's good about the company")
+    concerns: List[str] = Field(default_factory=list, description="LLM-generated concerns / what's bad or risky")
     sources_used: List[str] = Field(default_factory=list)
     external_data: Optional[Dict[str, Any]] = None
     generated_at: datetime = Field(default_factory=datetime.utcnow)

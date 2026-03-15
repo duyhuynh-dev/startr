@@ -39,7 +39,8 @@ export default function LoginPage() {
 
     try {
       await login(email, password, turnstileToken || undefined);
-      router.push('/discover');
+      const userData = await authApi.getCurrentUser();
+      router.push(userData?.profile_id ? '/discover' : '/onboarding');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed. Please try again.');
     } finally {

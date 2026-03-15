@@ -80,6 +80,8 @@ export interface DiligenceSummary {
   metrics: Metric[];
   risks: RiskFlag[];
   narrative: string | null;
+  strengths?: string[];
+  concerns?: string[];
   sources_used: string[];
   external_data: ExternalData | null;
   generated_at: string;

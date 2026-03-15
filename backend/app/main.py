@@ -112,6 +112,11 @@ def create_application() -> FastAPI:
     
     # Filter out wildcard patterns from exact origins
     exact_origins = [origin for origin in settings.cors_origins if "*" not in origin]
+    # Ensure localhost is always allowed for local development (avoids CORS when env overwrites)
+    if not exact_origins:
+        exact_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    elif "http://localhost:3000" not in exact_origins and "http://127.0.0.1:3000" not in exact_origins:
+        exact_origins = list(exact_origins) + ["http://localhost:3000", "http://127.0.0.1:3000"]
     # Extract wildcard patterns for regex matching
     wildcard_patterns = [origin for origin in settings.cors_origins if "*" in origin]
     
@@ -127,7 +132,7 @@ def create_application() -> FastAPI:
     
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=exact_origins if exact_origins else [],
+        allow_origins=exact_origins,
         allow_origin_regex=origin_regex,
         allow_credentials=True,
         allow_methods=["*"],

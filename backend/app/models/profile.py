@@ -60,6 +60,13 @@ class Profile(SQLModel, table=True):
         sa_column=Column(JSON, nullable=False),
     )
 
+    # Market & Niche Intelligence (inferred / enrichment data)
+    financial_health: dict | None = Field(default=None, sa_column=Column(JSON, nullable=True))
+    market_sentiment: Optional[str] = None
+    niche_moat: Optional[str] = None
+    competitor_gap: List[str] = Field(default_factory=list, sa_column=Column(JSON, nullable=False, default=list))
+    intelligence_sources: List[str] = Field(default_factory=list, sa_column=Column(JSON, nullable=False, default=list))
+
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 

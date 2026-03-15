@@ -8,6 +8,76 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import type { ProfileCard as ProfileCardType } from '@/lib/api/feed';
 
+/** Holistic venture fit: financials + market position + profile strength + balance (no single-metric thresholds). */
+function getHolisticFitScore(profile: ProfileCardType): number {
+  const teamSize = Math.max(1, profile.team_size ?? 1);
+  const rev = profile.revenue_run_rate ?? 0;
+  const runwayMonths = profile.runway_months ?? 0;
+  const fundingPerHead = (rev * 12) / teamSize;
+
+  // 1. Financial sustainability (smooth continuum, not a single cutoff)
+  const revNorm = Math.min(1, fundingPerHead / 1_500_000);
+  const runwayNorm = Math.min(1, runwayMonths / 24);
+  const financialScore = 0.6 * revNorm + 0.4 * runwayNorm;
+
+  // 2. Market & positioning (enrichment + narrative strength when available)
+  let marketScore = 0.5;
+  const hasEnrichment =
+    !!profile.market_sentiment || !!profile.niche_moat || (profile.competitor_gap?.length ?? 0) > 0;
+  if (hasEnrichment) {
+    const sentimentPositive = /positive|strong|bullish|favorable/i.test(profile.market_sentiment ?? '') ? 1 : 0.5;
+    const hasMoat = (profile.niche_moat?.length ?? 0) > 20 ? 1 : 0.5;
+    const hasGap = (profile.competitor_gap?.length ?? 0) > 0 ? 1 : 0;
+    marketScore = Math.min(1, 0.4 * sentimentPositive + 0.4 * hasMoat + 0.2 * hasGap);
+  }
+
+  // 3. Profile strength (completeness and diversity of signals, not raw size)
+  const promptsWithContent = (profile.prompts ?? []).filter((p) => p?.content?.trim()).length;
+  const promptScore = Math.min(1, promptsWithContent / 3) * 0.4;
+  const hasMarkets = (profile.focus_markets?.length ?? 0) > 0 ? 0.2 : 0;
+  const hasRevenue = (profile.revenue_run_rate ?? 0) > 0 ? 0.2 : 0;
+  const hasRunway = (profile.runway_months ?? 0) > 0 ? 0.2 : 0;
+  const profileStrengthScore = promptScore + hasMarkets + hasRevenue + hasRunway;
+
+  // 4. Balance (runway sustainability and team size band — holistic, not “more $ = better”)
+  const runwayOk = Math.min(1, runwayMonths / 18);
+  const teamReasonable = teamSize >= 2 && teamSize <= 50 ? 1 : teamSize < 2 ? 0.5 : 0.8;
+  const balanceScore = runwayOk * 0.6 + teamReasonable * 0.4;
+
+  const composite =
+    0.3 * financialScore + 0.3 * marketScore + 0.2 * profileStrengthScore + 0.2 * balanceScore;
+  return Math.min(1, composite);
+}
+
+function VentureFitBar({ profile }: { profile: ProfileCardType }) {
+  if (profile.role !== 'founder') return null;
+  const composite = getHolisticFitScore(profile);
+  const pct = Math.min(100, Math.round(composite * 100));
+  const label =
+    composite >= 0.6 ? 'Strong fit' : composite >= 0.35 ? 'Moderate fit' : 'Building traction';
+  const barColor =
+    composite >= 0.6 ? 'bg-emerald-500' : composite >= 0.35 ? 'bg-amber-500' : 'bg-white/30';
+  const hasEnrichment =
+    !!profile.market_sentiment || !!profile.niche_moat || (profile.competitor_gap?.length ?? 0) > 0;
+  return (
+    <div className="col-span-2 bg-white/3 rounded-xl px-4 py-3">
+      <p className="text-[10px] uppercase tracking-wider text-white/30 font-medium mb-1.5" title="Financials, market position, profile strength, and balance">
+        Venture fit
+      </p>
+      <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all ${barColor}`}
+          style={{ width: `${Math.max(10, pct)}%` }}
+        />
+      </div>
+      <p className="text-xs text-white/50 mt-1">{label}</p>
+      {!hasEnrichment && (
+        <p className="text-[10px] text-white/30 mt-0.5">Based on profile data only</p>
+      )}
+    </div>
+  );
+}
+
 function formatLastActive(iso: string): string {
   const d = new Date(iso);
   const now = new Date();
@@ -63,7 +133,7 @@ export function ProfileCard({ profile, onLike, onPass, onViewDiligence, dailyLim
               )}
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-white">{profile.full_name}</h2>
+              <h2 className="text-lg font-semibold text-white">{profile.full_name ?? 'Someone'}</h2>
               {(profile.is_online || profile.last_active_at) && (
                 <p className="text-xs text-white/40 mt-0.5">
                   {profile.is_online ? 'Online now' : profile.last_active_at ? `Active ${formatLastActive(profile.last_active_at)}` : null}
@@ -82,23 +152,20 @@ export function ProfileCard({ profile, onLike, onPass, onViewDiligence, dailyLim
               </div>
             </div>
           </div>
-
-          {profile.compatibility_score != null && profile.compatibility_score > 0 && (
-            <div className="text-right shrink-0">
-              <div className="text-2xl font-bold text-white">{Math.round(profile.compatibility_score)}%</div>
-              <div className="text-[10px] uppercase tracking-wider text-white/30 font-medium">match</div>
-            </div>
-          )}
         </div>
 
         {/* Prompts */}
         {profile.prompts && profile.prompts.length > 0 && (
           <div className="mb-5 space-y-3">
-            {profile.prompts.map((prompt, idx) => (
-              <div key={prompt.prompt_id || idx} className="bg-white/3 rounded-xl p-4">
-                <p className="text-sm text-white/70 leading-relaxed">{prompt.content}</p>
-              </div>
-            ))}
+            {profile.prompts.map((prompt, idx) => {
+              const text = (prompt.content ?? '').trim();
+              if (!text) return null;
+              return (
+                <div key={prompt.prompt_id || idx} className="bg-white/3 rounded-xl p-4">
+                  <p className="text-sm text-white/70 leading-relaxed">{text}</p>
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -146,9 +213,26 @@ export function ProfileCard({ profile, onLike, onPass, onViewDiligence, dailyLim
           {profile.role === 'founder' && (
             <div className="grid grid-cols-2 gap-3">
               {profile.company_name && (
-                <div className="bg-white/3 rounded-xl px-4 py-3">
-                  <p className="text-[10px] uppercase tracking-wider text-white/30 font-medium mb-0.5">Company</p>
-                  <p className="text-sm font-medium text-white">{profile.company_name}</p>
+                <div className="bg-white/3 rounded-xl px-4 py-3 flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-white/30 font-medium mb-0.5">Company</p>
+                    <p className="text-sm font-medium text-white">{profile.company_name}</p>
+                  </div>
+                  {profile.niche_moat && (
+                    <div className="group relative shrink-0">
+                      <span
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/20 text-amber-400"
+                        title="Market Intelligence"
+                        aria-label="AI-generated market insight"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+                      </span>
+                      <div className="absolute right-0 top-full z-10 mt-1 hidden w-64 rounded-lg border border-white/10 bg-[#0d0e1a] p-3 text-xs text-white/80 shadow-xl group-hover:block">
+                        <p className="text-[10px] uppercase tracking-wider text-amber-400/80 mb-1">Market Intelligence</p>
+                        <p>{profile.niche_moat}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               {profile.revenue_run_rate != null && profile.revenue_run_rate > 0 && (
@@ -169,6 +253,7 @@ export function ProfileCard({ profile, onLike, onPass, onViewDiligence, dailyLim
                   <p className="text-sm font-medium text-white">{profile.runway_months} months</p>
                 </div>
               )}
+              <VentureFitBar profile={profile} />
             </div>
           )}
         </div>

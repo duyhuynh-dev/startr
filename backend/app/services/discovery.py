@@ -860,6 +860,11 @@ class DiscoveryFeedService:
             "team_size": profile.team_size,
             "runway_months": profile.runway_months,
             "focus_markets": profile.focus_markets or [],
+            "financial_health": profile.financial_health,
+            "market_sentiment": profile.market_sentiment,
+            "niche_moat": profile.niche_moat,
+            "competitor_gap": profile.competitor_gap or [],
+            "intelligence_sources": getattr(profile, "intelligence_sources", None) or [],
             "created_at": profile.created_at,
             "updated_at": profile.updated_at,
         }

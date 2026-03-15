@@ -28,6 +28,13 @@ export interface ProfileCard {
   revenue_run_rate?: number;
   team_size?: number;
   runway_months?: number;
+  focus_markets?: string[];
+  // Market & Niche Intelligence (enrichment)
+  financial_health?: { estimated_runway_months?: number | null; funding_velocity?: string | null };
+  market_sentiment?: string | null;
+  niche_moat?: string | null;
+  competitor_gap?: string[];
+  intelligence_sources?: string[];
 }
 
 export interface DiscoveryFeedResponse {

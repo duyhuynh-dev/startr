@@ -800,9 +800,9 @@ function Footer() {
           </span>
         </div>
         <div className="flex items-center gap-8 text-sm text-white/25">
-          <a href="#" className="hover:text-white/60 transition-colors">Privacy</a>
-          <a href="#" className="hover:text-white/60 transition-colors">Terms</a>
-          <a href="#" className="hover:text-white/60 transition-colors">Contact</a>
+          <Link href="/privacy" className="hover:text-white/60 transition-colors">Privacy</Link>
+          <Link href="/terms" className="hover:text-white/60 transition-colors">Terms</Link>
+          <Link href="/contact" className="hover:text-white/60 transition-colors">Contact</Link>
         </div>
         <p className="text-sm text-white/15">© 2026 Startr</p>
       </div>

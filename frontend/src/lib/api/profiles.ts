@@ -41,7 +41,7 @@ export const profilesApi = {
       });
       return response.data.file_url;
     } catch {
-      console.warn('Photo upload failed (storage may be unavailable). Skipping avatar.');
+      if (process.env.NODE_ENV === 'development') console.warn('Photo upload failed (storage may be unavailable). Skipping avatar.');
       return null;
     }
   },

@@ -102,7 +102,7 @@ export function LocationAutocomplete({
       setSuggestions(formatted);
       setShowSuggestions(formatted.length > 0);
     } catch (error) {
-      console.error('Error fetching location suggestions:', error);
+      if (process.env.NODE_ENV === 'development') console.error('Error fetching location suggestions:', error);
       setSuggestions([]);
     } finally {
       setIsLoading(false);

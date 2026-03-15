@@ -4,7 +4,7 @@
 
 'use client';
 
-import { useState, useEffect, type ReactNode } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { diligenceApi, type DiligenceSummary, type Metric, type RiskFlag, type ExternalData } from '@/lib/api/diligence';
 import { LoadingSpinner } from '@/components/ui';
@@ -60,17 +60,6 @@ export function DiligenceSidebar({ profileId, profileRole, isOpen, onClose }: Di
     return 'High Risk';
   };
 
-  const getTrendIcon = (trend: 'up' | 'flat' | 'down') => {
-    switch (trend) {
-      case 'up':
-        return <span className="text-emerald-400">↑</span>;
-      case 'down':
-        return <span className="text-red-400">↓</span>;
-      default:
-        return <span className="text-slate-400">→</span>;
-    }
-  };
-
   const getSeverityStyle = (severity: 'low' | 'medium' | 'high') => {
     switch (severity) {
       case 'high':
@@ -79,17 +68,6 @@ export function DiligenceSidebar({ profileId, profileRole, isOpen, onClose }: Di
         return 'bg-amber-500/20 border-amber-500/50 text-amber-300';
       default:
         return 'bg-slate-500/20 border-slate-500/50 text-slate-300';
-    }
-  };
-
-  const getSeverityIcon = (severity: 'low' | 'medium' | 'high') => {
-    switch (severity) {
-      case 'high':
-        return '⚠️';
-      case 'medium':
-        return '⚡';
-      default:
-        return 'ℹ️';
     }
   };
 
@@ -124,11 +102,9 @@ export function DiligenceSidebar({ profileId, profileRole, isOpen, onClose }: Di
               </div>
               <button
                 onClick={onClose}
-                className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
+                className="px-3 py-1.5 text-sm text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors"
               >
-                <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                Close
               </button>
             </div>
 
@@ -224,7 +200,7 @@ export function DiligenceSidebar({ profileId, profileRole, isOpen, onClose }: Di
                       </h3>
                       <div className="space-y-2">
                         {summary.metrics.map((metric, idx) => (
-                          <MetricRow key={idx} metric={metric} getTrendIcon={getTrendIcon} />
+                          <MetricRow key={idx} metric={metric} />
                         ))}
                       </div>
                     </motion.div>
@@ -237,8 +213,8 @@ export function DiligenceSidebar({ profileId, profileRole, isOpen, onClose }: Di
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.3 }}
                     >
-                      <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wide mb-3">
-                        Risk Flags ({summary.risks.length})
+                      <h3 className="text-sm font-semibold text-slate-300 tracking-wide mb-3">
+                        Risk flags ({summary.risks.length})
                       </h3>
                       <div className="space-y-2">
                         {summary.risks.map((risk, idx) => (
@@ -246,10 +222,53 @@ export function DiligenceSidebar({ profileId, profileRole, isOpen, onClose }: Di
                             key={idx}
                             risk={risk}
                             getSeverityStyle={getSeverityStyle}
-                            getSeverityIcon={getSeverityIcon}
                           />
                         ))}
                       </div>
+                    </motion.div>
+                  )}
+
+                  {/* Strengths (what's good) */}
+                  {(summary.strengths ?? []).length > 0 && (
+                    <motion.div
+                      className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.32 }}
+                    >
+                      <h3 className="text-sm font-semibold text-emerald-400 uppercase tracking-wide mb-3">
+                        Strengths
+                      </h3>
+                      <ul className="space-y-2">
+                        {(summary.strengths ?? []).map((s, idx) => (
+                          <li key={idx} className="flex gap-2 text-sm text-slate-300">
+                            <span className="text-emerald-400 shrink-0">•</span>
+                            <span>{s}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </motion.div>
+                  )}
+
+                  {/* Concerns (what's bad / risky) */}
+                  {(summary.concerns ?? []).length > 0 && (
+                    <motion.div
+                      className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.34 }}
+                    >
+                      <h3 className="text-sm font-semibold text-amber-400 uppercase tracking-wide mb-3">
+                        Concerns
+                      </h3>
+                      <ul className="space-y-2">
+                        {(summary.concerns ?? []).map((c, idx) => (
+                          <li key={idx} className="flex gap-2 text-sm text-slate-300">
+                            <span className="text-amber-400 shrink-0">•</span>
+                            <span>{c}</span>
+                          </li>
+                        ))}
+                      </ul>
                     </motion.div>
                   )}
 
@@ -283,12 +302,13 @@ export function DiligenceSidebar({ profileId, profileRole, isOpen, onClose }: Di
                   {/* Sources Used */}
                   {summary.sources_used && summary.sources_used.length > 0 && (
                     <div className="flex flex-wrap gap-2">
-                      {summary.sources_used.map((source) => (
+                      {(summary.sources_used ?? []).map((source) => (
                         <span
                           key={source}
                           className="px-2 py-1 bg-blue-500/20 text-blue-300 text-xs rounded-full"
+                          title={source === 'hunter' ? 'Hunter.io – email verification service' : undefined}
                         >
-                          {source}
+                          {source === 'hunter' ? 'Hunter.io (email)' : source === 'apollo' ? 'Apollo (company)' : source === 'openai' ? 'OpenAI' : source}
                         </span>
                       ))}
                     </div>
@@ -320,31 +340,13 @@ export function DiligenceSidebar({ profileId, profileRole, isOpen, onClose }: Di
   );
 }
 
-function MetricRow({
-  metric,
-  getTrendIcon,
-}: {
-  metric: Metric;
-  getTrendIcon: (trend: 'up' | 'flat' | 'down') => ReactNode;
-}) {
+function MetricRow({ metric }: { metric: Metric }) {
   return (
     <div className="flex items-center justify-between bg-slate-800/50 rounded-lg px-4 py-3 border border-slate-700/50">
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-slate-300">{metric.name}</span>
-        {getTrendIcon(metric.trend)}
-      </div>
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-medium text-slate-100">
-          {typeof metric.value === 'number' ? metric.value.toLocaleString() : metric.value}
-        </span>
-        {/* Confidence indicator */}
-        <div className="w-12 h-1.5 bg-slate-700 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-blue-500 rounded-full"
-            style={{ width: `${metric.confidence * 100}%` }}
-          />
-        </div>
-      </div>
+      <span className="text-sm text-slate-300">{metric.name}</span>
+      <span className="text-sm font-medium text-slate-100">
+        {typeof metric.value === 'number' ? metric.value.toLocaleString() : metric.value}
+      </span>
     </div>
   );
 }
@@ -352,11 +354,9 @@ function MetricRow({
 function RiskRow({
   risk,
   getSeverityStyle,
-  getSeverityIcon,
 }: {
   risk: RiskFlag;
   getSeverityStyle: (severity: 'low' | 'medium' | 'high') => string;
-  getSeverityIcon: (severity: 'low' | 'medium' | 'high') => string;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -366,11 +366,14 @@ function RiskRow({
       onClick={() => setIsExpanded(!isExpanded)}
     >
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span>{getSeverityIcon(risk.severity)}</span>
-          <span className="text-sm font-medium">{risk.code.replace(/_/g, ' ')}</span>
-        </div>
-        <span className="text-xs uppercase opacity-75">{risk.severity}</span>
+        <span className="text-sm font-medium">
+          {risk.code.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())}
+        </span>
+        <span className="text-xs opacity-75">
+          {typeof risk.severity === 'string'
+            ? risk.severity.charAt(0).toUpperCase() + risk.severity.slice(1).toLowerCase()
+            : risk.severity}
+        </span>
       </div>
       <AnimatePresence>
         {isExpanded && (
@@ -405,18 +408,10 @@ function ExternalDataSection({ data }: { data: ExternalData }) {
         >
           <div className="px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-lg">🏢</span>
               <span className="text-sm font-medium text-slate-200">Company Data</span>
               <span className="text-xs text-slate-500">(Apollo)</span>
             </div>
-            <svg
-              className={`w-4 h-4 text-slate-400 transition-transform ${expandedSection === 'apollo' ? 'rotate-180' : ''}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
+            <span className="text-xs text-slate-500">{expandedSection === 'apollo' ? 'Collapse' : 'Expand'}</span>
           </div>
           <AnimatePresence>
             {expandedSection === 'apollo' && (
@@ -484,7 +479,6 @@ function ExternalDataSection({ data }: { data: ExternalData }) {
         >
           <div className="px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-lg">📧</span>
               <span className="text-sm font-medium text-slate-200">Email Verification</span>
               <span className={`text-xs px-2 py-0.5 rounded ${
                 data.email_verification.result === 'deliverable' 
@@ -496,14 +490,7 @@ function ExternalDataSection({ data }: { data: ExternalData }) {
                 {data.email_verification.result}
               </span>
             </div>
-            <svg
-              className={`w-4 h-4 text-slate-400 transition-transform ${expandedSection === 'email' ? 'rotate-180' : ''}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
+            <span className="text-xs text-slate-500">{expandedSection === 'email' ? 'Collapse' : 'Expand'}</span>
           </div>
           <AnimatePresence>
             {expandedSection === 'email' && (
@@ -521,7 +508,7 @@ function ExternalDataSection({ data }: { data: ExternalData }) {
                   <div className="flex justify-between">
                     <span className="text-slate-500">Disposable:</span>
                     <span className={data.email_verification.disposable ? 'text-red-400' : 'text-emerald-400'}>
-                      {data.email_verification.disposable ? 'Yes ⚠️' : 'No ✓'}
+                      {data.email_verification.disposable ? 'Yes' : 'No'}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -543,18 +530,10 @@ function ExternalDataSection({ data }: { data: ExternalData }) {
         >
           <div className="px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-lg">🤖</span>
               <span className="text-sm font-medium text-slate-200">AI Analysis</span>
               <span className="text-xs text-slate-500">(GPT-4)</span>
             </div>
-            <svg
-              className={`w-4 h-4 text-slate-400 transition-transform ${expandedSection === 'ai' ? 'rotate-180' : ''}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
+            <span className="text-xs text-slate-500">{expandedSection === 'ai' ? 'Collapse' : 'Expand'}</span>
           </div>
           <AnimatePresence>
             {expandedSection === 'ai' && (

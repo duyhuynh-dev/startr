@@ -5,9 +5,11 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+import httpx
 from sqlmodel import Session
 
 from app.core.cache import CACHE_TTL_LONG, cache_service
+from app.core.config import settings
 from app.models.profile import Profile
 from app.schemas.diligence import DiligenceSummary, Metric, RiskFlag
 from app.services.etl.data_sources import (
@@ -93,12 +95,17 @@ class DiligenceService:
         # Generate LLM narrative (stub for now)
         narrative = self._generate_narrative(profile, metrics, risks, external_data)
 
+        # LLM-based strengths and concerns (what's good / what's bad about the company)
+        strengths, concerns = self._generate_llm_strengths_concerns(profile, metrics, risks)
+
         summary = DiligenceSummary(
             profile_id=profile_id,
             score=score,
             metrics=metrics,
             risks=risks,
             narrative=narrative,
+            strengths=strengths,
+            concerns=concerns,
             sources_used=external_data.get("sources_used", []),
             external_data=self._sanitize_external_data(external_data),
             generated_at=datetime.utcnow(),
@@ -658,6 +665,119 @@ class DiligenceService:
 
         return " ".join([p for p in narrative_parts if p])
 
+    def _build_profile_context(self, profile: Profile) -> str:
+        """Build a text summary of the profile for LLM context."""
+        parts = []
+        company = profile.company_name or profile.full_name
+        parts.append(f"Company: {company}")
+        if profile.headline:
+            parts.append(f"Headline: {profile.headline}")
+        if profile.location:
+            parts.append(f"Location: {profile.location}")
+        if profile.revenue_run_rate is not None:
+            parts.append(f"Revenue run rate (MRR): ${profile.revenue_run_rate:,.0f}")
+        if profile.team_size is not None:
+            parts.append(f"Team size: {profile.team_size}")
+        if profile.runway_months is not None:
+            parts.append(f"Runway: {profile.runway_months} months")
+        if profile.focus_markets:
+            parts.append(f"Focus markets: {', '.join(profile.focus_markets)}")
+        if profile.niche_moat:
+            parts.append(f"Market position / moat: {profile.niche_moat[:500]}")
+        if profile.market_sentiment:
+            parts.append(f"Market sentiment: {profile.market_sentiment}")
+        if profile.prompts:
+            for i, p in enumerate(profile.prompts):
+                if isinstance(p, dict) and p.get("content"):
+                    parts.append(f"Prompt {i + 1}: {p['content'][:300]}")
+        return "\n".join(parts)
+
+    def _generate_llm_strengths_concerns(
+        self, profile: Profile, metrics: List[Metric], risks: List[RiskFlag]
+    ) -> tuple[List[str], List[str]]:
+        """Use LLM to analyze the company and return strengths (good) and concerns (bad). Falls back to rule-based if LLM unavailable."""
+        api_key = getattr(settings, "openai_api_key", None) or (settings.model_dump().get("openai_api_key") if hasattr(settings, "model_dump") else None)
+        if not api_key:
+            return self._fallback_strengths_concerns(profile, metrics, risks)
+
+        context = self._build_profile_context(profile)
+        metrics_str = json.dumps([{"name": m.name, "value": m.value, "trend": m.trend} for m in metrics], indent=2)
+        risks_str = json.dumps([{"code": r.code, "severity": r.severity, "description": r.description} for r in risks], indent=2)
+
+        prompt = f"""You are a venture capital analyst. Based ONLY on the following profile and metrics, list what is GOOD about this company (strengths) and what is BAD or RISKY (concerns). Be specific and concise. Use 3-6 bullet points for each.
+
+Profile and data:
+{context}
+
+Metrics:
+{metrics_str}
+
+Risk flags:
+{risks_str}
+
+Respond with a valid JSON object with exactly two keys: "strengths" (array of strings) and "concerns" (array of strings). No other text."""
+
+        try:
+            with httpx.Client(timeout=45.0) as client:
+                resp = client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                    json={
+                        "model": "gpt-4o-mini",
+                        "messages": [
+                            {"role": "system", "content": "You output only valid JSON with keys 'strengths' and 'concerns'. No markdown."},
+                            {"role": "user", "content": prompt},
+                        ],
+                        "temperature": 0.3,
+                        "max_tokens": 600,
+                    },
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                content = (data.get("choices") or [{}])[0].get("message", {}).get("content", "") or "{}"
+                # Strip markdown code block if present
+                if "```" in content:
+                    content = content.split("```")[1]
+                    if content.startswith("json"):
+                        content = content[4:]
+                out = json.loads(content.strip())
+                strengths = list(out.get("strengths") or [])[:8]
+                concerns = list(out.get("concerns") or [])[:8]
+                return (strengths, concerns)
+        except Exception as e:
+            logger.warning("LLM strengths/concerns failed: %s", e)
+        return self._fallback_strengths_concerns(profile, metrics, risks)
+
+    def _fallback_strengths_concerns(
+        self, profile: Profile, metrics: List[Metric], risks: List[RiskFlag]
+    ) -> tuple[List[str], List[str]]:
+        """Rule-based strengths and concerns when LLM is not available."""
+        strengths: List[str] = []
+        concerns: List[str] = []
+        if profile.revenue_run_rate and profile.revenue_run_rate > 0:
+            strengths.append(f"Disclosed revenue run rate (${profile.revenue_run_rate:,.0f}/mo) indicates traction.")
+        if profile.team_size and profile.team_size >= 2:
+            strengths.append(f"Team size ({profile.team_size}) suggests capacity to execute.")
+        if profile.runway_months is not None:
+            if profile.runway_months >= 18:
+                strengths.append(f"Runway of {profile.runway_months} months provides buffer for execution.")
+            elif profile.runway_months < 12:
+                concerns.append(f"Runway under 12 months ({profile.runway_months} mo) is a liquidity risk.")
+        if profile.focus_markets:
+            strengths.append(f"Clear focus markets: {', '.join(profile.focus_markets[:3])}.")
+        if profile.prompts and any(isinstance(p, dict) and p.get("content") for p in profile.prompts):
+            strengths.append("Founder has provided narrative responses (profile completeness).")
+        for r in risks:
+            if r.severity == "high":
+                concerns.append(r.description)
+            elif r.severity == "medium":
+                concerns.append(r.description)
+        if not strengths:
+            strengths.append("Profile has basic company and role information.")
+        if not concerns:
+            concerns.append("Limited data available; consider requesting more detail.")
+        return (strengths[:8], concerns[:8])
+
     def _generate_investor_summary(self, profile: Profile) -> DiligenceSummary:
         """Generate summary for investor profiles (different checks)."""
         metrics: List[Metric] = []
@@ -709,14 +829,16 @@ class DiligenceService:
             risks=risks,
             narrative=f"Investor profile summary for {profile.firm or profile.full_name}. "
             f"Focus: {', '.join(profile.focus_sectors[:3]) if profile.focus_sectors else 'General'}.",
+            strengths=[],
+            concerns=[],
             generated_at=datetime.utcnow(),
         )
 
-
-def _sanitize_external_data(self, external_data: Dict) -> Dict[str, Any]:
+    def _sanitize_external_data(self, external_data: Dict) -> Dict[str, Any]:
         """Sanitize external data for frontend display (remove sensitive/internal fields)."""
         sanitized = {}
-        
+        if not isinstance(external_data, dict):
+            return sanitized
         # Apollo - key company insights
         if "apollo" in external_data and external_data["apollo"].get("status") == "success":
             apollo = external_data["apollo"]
@@ -727,11 +849,9 @@ def _sanitize_external_data(self, external_data: Dict) -> Dict[str, Any]:
                 "total_funding": apollo.get("total_funding"),
                 "latest_funding_round": apollo.get("latest_funding_round"),
                 "location": apollo.get("location"),
-                "technologies": apollo.get("technologies", [])[:5],  # Top 5
+                "technologies": apollo.get("technologies", [])[:5],
                 "linkedin_url": apollo.get("linkedin_url"),
             }
-        
-        # Hunter - email verification results
         if "hunter_email" in external_data and external_data["hunter_email"].get("status") == "success":
             hunter = external_data["hunter_email"]
             sanitized["email_verification"] = {
@@ -740,8 +860,6 @@ def _sanitize_external_data(self, external_data: Dict) -> Dict[str, Any]:
                 "disposable": hunter.get("disposable"),
                 "webmail": hunter.get("webmail"),
             }
-        
-        # OpenAI - AI analysis
         if "openai" in external_data and external_data["openai"].get("status") == "success":
             openai = external_data["openai"]
             sanitized["ai_analysis"] = {
@@ -752,8 +870,6 @@ def _sanitize_external_data(self, external_data: Dict) -> Dict[str, Any]:
                 "competitors": openai.get("competitors", []),
                 "market_size": openai.get("market_size"),
             }
-        
-        # PDL - People Data Labs
         if "pdl" in external_data and external_data["pdl"].get("status") == "success":
             pdl = external_data["pdl"]
             sanitized["pdl"] = {
@@ -768,8 +884,6 @@ def _sanitize_external_data(self, external_data: Dict) -> Dict[str, Any]:
                 "linkedin_url": pdl.get("linkedin_url"),
                 "tags": pdl.get("tags", [])[:5],
             }
-        
-        # PDL Founder data
         if "pdl_founder" in external_data and external_data["pdl_founder"].get("status") == "success":
             founder = external_data["pdl_founder"]
             sanitized["founder"] = {
@@ -781,7 +895,6 @@ def _sanitize_external_data(self, external_data: Dict) -> Dict[str, Any]:
                 "experience": founder.get("experience", [])[:3],
                 "education": founder.get("education", [])[:2],
             }
-        
         return sanitized
 
 

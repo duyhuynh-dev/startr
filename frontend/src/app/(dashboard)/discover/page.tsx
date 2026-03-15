@@ -21,7 +21,7 @@ const STAGE_OPTIONS = ['Pre-Seed', 'Seed', 'Series A', 'Series B', 'Growth'];
 const SECTOR_OPTIONS = ['SaaS', 'Fintech', 'AI/ML', 'Healthcare', 'Consumer', 'Climate', 'Enterprise', 'Web3', 'Deep Tech'];
 
 export default function DiscoverPage() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [profiles, setProfiles] = useState<ProfileCardType[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,6 +40,8 @@ export default function DiscoverPage() {
   const [selectedStages, setSelectedStages] = useState<string[]>([]);
   const [selectedSectors, setSelectedSectors] = useState<string[]>([]);
   const [locationFilter, setLocationFilter] = useState('');
+  const [minCheckSize, setMinCheckSize] = useState<number | ''>('');
+  const [maxCheckSize, setMaxCheckSize] = useState<number | ''>('');
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const { toast } = useToast();
@@ -57,7 +59,7 @@ export default function DiscoverPage() {
         roses_remaining: limits.roses_remaining,
       });
     } catch (err) {
-      console.error('Failed to load daily limits:', err);
+      if (process.env.NODE_ENV === 'development') console.error('Failed to load daily limits:', err);
     }
   };
 
@@ -77,6 +79,8 @@ export default function DiscoverPage() {
         ...(selectedStages.length > 0 && { stages: selectedStages }),
         ...(selectedSectors.length > 0 && { sectors: selectedSectors }),
         ...(locationFilter.trim() && { location: locationFilter.trim() }),
+        ...(minCheckSize !== '' && minCheckSize != null && { min_check_size: Number(minCheckSize) }),
+        ...(maxCheckSize !== '' && maxCheckSize != null && { max_check_size: Number(maxCheckSize) }),
       };
       const response = await feedApi.getDiscoveryFeed(filterParams);
 
@@ -91,7 +95,15 @@ export default function DiscoverPage() {
         setCurrentIndex(0);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load profiles');
+      const msg = err instanceof Error ? err.message : 'Failed to load profiles';
+      const res = typeof err === 'object' && err !== null && 'response' in err ? (err as { response?: { status?: number } }).response : undefined;
+      const isProfileMissing = res?.status === 404 || /profile|complete your profile/i.test(msg);
+      if (isProfileMissing) {
+        refreshUser?.();
+        setError('Please complete your profile first.');
+      } else {
+        setError(msg);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -107,6 +119,8 @@ export default function DiscoverPage() {
     stages: string[],
     sectors: string[],
     location: string,
+    minCheck?: number | '',
+    maxCheck?: number | '',
   ) => {
     if (!user?.profile_id) return;
     setIsApplyingFilters(true);
@@ -122,6 +136,8 @@ export default function DiscoverPage() {
         ...(stages.length > 0 && { stages }),
         ...(sectors.length > 0 && { sectors }),
         ...(location.trim() && { location: location.trim() }),
+        ...(minCheck !== '' && minCheck != null && Number(minCheck) > 0 && { min_check_size: Number(minCheck) }),
+        ...(maxCheck !== '' && maxCheck != null && Number(maxCheck) > 0 && { max_check_size: Number(maxCheck) }),
       };
       const response = await feedApi.getDiscoveryFeed(filterParams);
 
@@ -145,14 +161,16 @@ export default function DiscoverPage() {
   }, [user?.profile_id]);
 
   const handleApplyFilters = useCallback(() => {
-    fetchWithFilters(selectedStages, selectedSectors, locationFilter);
-  }, [fetchWithFilters, selectedStages, selectedSectors, locationFilter]);
+    fetchWithFilters(selectedStages, selectedSectors, locationFilter, minCheckSize, maxCheckSize);
+  }, [fetchWithFilters, selectedStages, selectedSectors, locationFilter, minCheckSize, maxCheckSize]);
 
   const handleClearFilters = useCallback(() => {
     setSelectedStages([]);
     setSelectedSectors([]);
     setLocationFilter('');
-    fetchWithFilters([], [], '');
+    setMinCheckSize('');
+    setMaxCheckSize('');
+    fetchWithFilters([], [], '', '', '');
   }, [fetchWithFilters]);
 
   const handleLike = async (likeType: 'standard' | 'rose' = 'standard', note?: string, promptId?: string) => {
@@ -268,7 +286,7 @@ export default function DiscoverPage() {
                   type="button"
                   onClick={() => setFiltersOpen(!filtersOpen)}
                   className={`ml-auto flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
-                    filtersOpen || selectedStages.length > 0 || selectedSectors.length > 0 || locationFilter.trim()
+                    filtersOpen || selectedStages.length > 0 || selectedSectors.length > 0 || locationFilter.trim() || minCheckSize !== '' || maxCheckSize !== ''
                       ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
                       : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/5'
                   }`}
@@ -277,9 +295,9 @@ export default function DiscoverPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                   </svg>
                   Filters
-                  {(selectedStages.length > 0 || selectedSectors.length > 0 || locationFilter.trim()) && (
+                  {(selectedStages.length > 0 || selectedSectors.length > 0 || locationFilter.trim() || minCheckSize !== '' || maxCheckSize !== '') && (
                     <span className="w-4 h-4 rounded-full bg-amber-400 text-[#060611] text-[10px] font-bold flex items-center justify-center">
-                      {selectedStages.length + selectedSectors.length + (locationFilter.trim() ? 1 : 0)}
+                      {selectedStages.length + selectedSectors.length + (locationFilter.trim() ? 1 : 0) + (minCheckSize !== '' ? 1 : 0) + (maxCheckSize !== '' ? 1 : 0)}
                     </span>
                   )}
                 </button>
@@ -345,6 +363,33 @@ export default function DiscoverPage() {
                             selectFormat="city"
                           />
                         </div>
+
+                        <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-xs font-semibold text-white uppercase tracking-wider mb-2">Check size min ($)</p>
+                            <input
+                              type="number"
+                              min={0}
+                              step={10000}
+                              placeholder="e.g. 100000"
+                              value={minCheckSize === '' ? '' : minCheckSize}
+                              onChange={(e) => setMinCheckSize(e.target.value === '' ? '' : Number(e.target.value) || '')}
+                              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                            />
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-white uppercase tracking-wider mb-2">Check size max ($)</p>
+                            <input
+                              type="number"
+                              min={0}
+                              step={10000}
+                              placeholder="e.g. 5000000"
+                              value={maxCheckSize === '' ? '' : maxCheckSize}
+                              onChange={(e) => setMaxCheckSize(e.target.value === '' ? '' : Number(e.target.value) || '')}
+                              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                            />
+                          </div>
+                        </div>
                       </div>
 
                       <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-white/5">
@@ -408,7 +453,7 @@ export default function DiscoverPage() {
                 </div>
               ) : !currentProfile ? (
                 <div className="text-center py-24">
-                  {(selectedStages.length > 0 || selectedSectors.length > 0 || locationFilter.trim()) ? (
+                  {(selectedStages.length > 0 || selectedSectors.length > 0 || locationFilter.trim() || minCheckSize !== '' || maxCheckSize !== '') ? (
                     <>
                       <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-white/5 flex items-center justify-center">
                         <svg className="w-7 h-7 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -422,6 +467,8 @@ export default function DiscoverPage() {
                           ...selectedStages,
                           ...selectedSectors,
                           ...(locationFilter.trim() ? [locationFilter.trim()] : []),
+                          ...(minCheckSize !== '' ? [`Min check $${Number(minCheckSize).toLocaleString()}`] : []),
+                          ...(maxCheckSize !== '' ? [`Max check $${Number(maxCheckSize).toLocaleString()}`] : []),
                         ].join(', ')}
                       </p>
                       <p className="text-sm text-white/30 mb-4">Try broadening your search or clearing some filters.</p>

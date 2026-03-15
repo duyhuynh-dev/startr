@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "VC × Startup Matching Platform",
+  title: "Startr",
   description: "Connect investors with startups through ML-powered matching",
 };
 

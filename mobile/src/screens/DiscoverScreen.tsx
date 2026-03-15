@@ -342,11 +342,15 @@ export function DiscoverScreen() {
               </View>
 
               <View style={styles.contentArea}>
-                {profile.prompts?.length > 0 && profile.prompts.map((p, idx) => (
-                  <View key={p.prompt_id || idx} style={styles.promptCard}>
-                    <Text style={styles.promptText}>{p.content}</Text>
-                  </View>
-                ))}
+                {profile.prompts?.length > 0 && profile.prompts.map((p, idx) => {
+                  const text = (p.content ?? '').trim();
+                  if (!text) return null;
+                  return (
+                    <View key={p.prompt_id || idx} style={styles.promptCard}>
+                      <Text style={styles.promptText}>{text}</Text>
+                    </View>
+                  );
+                })}
                 {profile.role === 'investor' && <InvestorSection profile={profile} />}
                 {profile.role === 'founder' && <FounderSection profile={profile} />}
               </View>
@@ -513,18 +517,68 @@ function InvestorSection({ profile }: { profile: ProfileCard }) {
   );
 }
 
+function getHolisticFitScore(profile: ProfileCard): number {
+  const teamSize = Math.max(1, profile.team_size ?? 1);
+  const rev = profile.revenue_run_rate ?? 0;
+  const runwayMonths = profile.runway_months ?? 0;
+  const fundingPerHead = (rev * 12) / teamSize;
+  const revNorm = Math.min(1, fundingPerHead / 1_500_000);
+  const runwayNorm = Math.min(1, runwayMonths / 24);
+  const financialScore = 0.6 * revNorm + 0.4 * runwayNorm;
+  let marketScore = 0.5;
+  const hasEnrichment =
+    !!profile.market_sentiment || !!profile.niche_moat || (profile.competitor_gap?.length ?? 0) > 0;
+  if (hasEnrichment) {
+    const sentimentPositive = /positive|strong|bullish|favorable/i.test(profile.market_sentiment ?? '') ? 1 : 0.5;
+    const hasMoat = (profile.niche_moat?.length ?? 0) > 20 ? 1 : 0.5;
+    const hasGap = (profile.competitor_gap?.length ?? 0) > 0 ? 1 : 0;
+    marketScore = Math.min(1, 0.4 * sentimentPositive + 0.4 * hasMoat + 0.2 * hasGap);
+  }
+  const promptsWithContent = (profile.prompts ?? []).filter((p) => (p?.content ?? '').trim()).length;
+  const promptScore = Math.min(1, promptsWithContent / 3) * 0.4;
+  const hasMarkets = (profile.focus_markets?.length ?? 0) > 0 ? 0.2 : 0;
+  const hasRevenue = (profile.revenue_run_rate ?? 0) > 0 ? 0.2 : 0;
+  const hasRunway = (profile.runway_months ?? 0) > 0 ? 0.2 : 0;
+  const profileStrengthScore = promptScore + hasMarkets + hasRevenue + hasRunway;
+  const runwayOk = Math.min(1, runwayMonths / 18);
+  const teamReasonable = teamSize >= 2 && teamSize <= 50 ? 1 : teamSize < 2 ? 0.5 : 0.8;
+  const balanceScore = runwayOk * 0.6 + teamReasonable * 0.4;
+  const composite = 0.3 * financialScore + 0.3 * marketScore + 0.2 * profileStrengthScore + 0.2 * balanceScore;
+  return Math.min(1, composite);
+}
+
 function FounderSection({ profile }: { profile: ProfileCard }) {
   const hasTiles = profile.company_name || (profile.revenue_run_rate != null && profile.revenue_run_rate > 0) || (profile.team_size != null && profile.team_size > 0) || (profile.runway_months != null && profile.runway_months > 0);
-  if (!hasTiles) return null;
+  const composite = getHolisticFitScore(profile);
+  const pct = Math.min(100, Math.round(composite * 100));
+  const fitLabel = composite >= 0.6 ? 'Strong fit' : composite >= 0.35 ? 'Moderate fit' : 'Building traction';
+  const hasEnrichment = !!profile.market_sentiment || !!profile.niche_moat || (profile.competitor_gap?.length ?? 0) > 0;
+  const barColor = composite >= 0.6 ? '#10b981' : composite >= 0.35 ? '#f59e0b' : 'rgba(255,255,255,0.3)';
   return (
     <View style={styles.sectionCard}>
       <Text style={styles.sectionTitle}>About</Text>
-      <View style={styles.tilesGrid}>
-        {profile.company_name ? <Tile label="Company" value={profile.company_name} /> : null}
-        {profile.revenue_run_rate != null && profile.revenue_run_rate > 0 ? <Tile label="MRR" value={`$${profile.revenue_run_rate.toLocaleString()}`} /> : null}
-        {profile.team_size != null && profile.team_size > 0 ? <Tile label="Team" value={`${profile.team_size} people`} /> : null}
-        {profile.runway_months != null && profile.runway_months > 0 ? <Tile label="Runway" value={`${profile.runway_months} months`} /> : null}
+      {hasTiles ? (
+        <View style={styles.tilesGrid}>
+          {profile.company_name ? <Tile label="Company" value={profile.company_name} /> : null}
+          {profile.revenue_run_rate != null && profile.revenue_run_rate > 0 ? <Tile label="MRR" value={`$${profile.revenue_run_rate.toLocaleString()}`} /> : null}
+          {profile.team_size != null && profile.team_size > 0 ? <Tile label="Team" value={`${profile.team_size} people`} /> : null}
+          {profile.runway_months != null && profile.runway_months > 0 ? <Tile label="Runway" value={`${profile.runway_months} months`} /> : null}
+        </View>
+      ) : null}
+      <View style={styles.ventureFitRow}>
+        <Text style={styles.ventureFitLabel}>Venture fit</Text>
+        <View style={styles.ventureFitBarBg}>
+          <View style={[styles.ventureFitBarFill, { width: `${Math.max(10, pct)}%`, backgroundColor: barColor }]} />
+        </View>
+        <Text style={styles.ventureFitValue}>{fitLabel}</Text>
+        {!hasEnrichment && <Text style={styles.ventureFitNote}>Based on profile data only</Text>}
       </View>
+      {(profile.niche_moat ?? '').trim().length > 0 && (
+        <View style={styles.nicheMoatRow}>
+          <Text style={styles.tileLabel}>Market position</Text>
+          <Text style={styles.nicheMoatText} numberOfLines={3}>{(profile.niche_moat ?? '').trim()}</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -631,6 +685,15 @@ const styles = StyleSheet.create({
   tagsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
   tagChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.1)' },
   tagChipText: { fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: '500' },
+
+  ventureFitRow: { marginTop: 14, gap: 6 },
+  ventureFitLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, color: 'rgba(255,255,255,0.3)' },
+  ventureFitBarBg: { height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.1)', overflow: 'hidden' },
+  ventureFitBarFill: { height: '100%', borderRadius: 4 },
+  ventureFitValue: { fontSize: 13, color: 'rgba(255,255,255,0.6)', fontWeight: '500' },
+  ventureFitNote: { fontSize: 10, color: 'rgba(255,255,255,0.25)', marginTop: 2 },
+  nicheMoatRow: { marginTop: 12, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.08)' },
+  nicheMoatText: { fontSize: 14, color: 'rgba(255,255,255,0.75)', lineHeight: 20, marginTop: 4 },
 
   bottomBar: {
     flexDirection: 'row',
