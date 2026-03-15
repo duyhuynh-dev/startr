@@ -92,7 +92,7 @@ export function MarketAutocomplete({
   return (
     <div ref={wrapperRef} className={`w-full ${className}`}>
       {label && (
-        <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
+        <label className="block text-sm font-medium text-white/70 mb-1">{label}</label>
       )}
 
       {value.length > 0 && (
@@ -100,13 +100,13 @@ export function MarketAutocomplete({
           {value.map((market) => (
             <span
               key={market}
-              className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs border border-slate-200"
+              className="inline-flex items-center gap-1 px-2.5 py-1 bg-white/5 text-white/70 rounded-lg text-xs border border-white/10"
             >
               {market}
               <button
                 type="button"
                 onClick={() => handleRemove(market)}
-                className="hover:text-slate-900 focus:outline-none"
+                className="hover:text-white focus:outline-none"
                 aria-label={`Remove ${market}`}
               >
                 &times;
@@ -126,17 +126,17 @@ export function MarketAutocomplete({
           onFocus={() => { if (filteredMarkets.length > 0) setShowDropdown(true); }}
           placeholder={placeholder}
           autoComplete="off"
-          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-300 transition-colors"
+          className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-white/20 transition-colors"
         />
 
         {showDropdown && filteredMarkets.length > 0 && (
-          <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+          <div className="absolute z-10 w-full mt-1 bg-[#0d0e1a] border border-white/10 rounded-xl shadow-lg max-h-60 overflow-y-auto">
             {filteredMarkets.map((market, index) => (
               <button
                 key={market}
                 type="button"
-                className={`w-full text-left px-4 py-2 hover:bg-slate-50 focus:bg-slate-50 focus:outline-none text-sm text-slate-700 ${
-                  index === selectedIndex ? 'bg-slate-100' : ''
+                className={`w-full text-left px-4 py-2 hover:bg-white/5 focus:bg-white/5 focus:outline-none text-sm text-white/70 ${
+                  index === selectedIndex ? 'bg-white/5' : ''
                 }`}
                 onClick={() => handleSelect(market)}
                 onMouseEnter={() => setSelectedIndex(index)}
@@ -148,14 +148,14 @@ export function MarketAutocomplete({
         )}
 
         {showDropdown && searchQuery && filteredMarkets.length === 0 && (
-          <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg p-4">
-            <p className="text-sm text-slate-400">No matching markets found.</p>
+          <div className="absolute z-10 w-full mt-1 bg-[#0d0e1a] border border-white/10 rounded-xl shadow-lg p-4">
+            <p className="text-sm text-white/30">No matching markets found.</p>
           </div>
         )}
       </div>
 
       {helperText && (
-        <p className="mt-1 text-sm text-slate-500">{helperText}</p>
+        <p className="mt-1 text-sm text-white/40">{helperText}</p>
       )}
     </div>
   );

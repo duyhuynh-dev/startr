@@ -11,7 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { ProfileCard } from '@/components/features/discover/ProfileCard';
 import { DiligenceSidebar } from '@/components/features/diligence';
-import { LocationAutocomplete } from '@/components/ui';
+import { LocationAutocomplete, MatchModal, useToast } from '@/components/ui';
 import { feedApi } from '@/lib/api/feed';
 import { matchesApi } from '@/lib/api/matches';
 import type { ProfileCard as ProfileCardType } from '@/lib/api/feed';
@@ -42,6 +42,10 @@ export default function DiscoverPage() {
   const [locationFilter, setLocationFilter] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
 
+  const { toast } = useToast();
+  const [matchModalOpen, setMatchModalOpen] = useState(false);
+  const [matchedName, setMatchedName] = useState('');
+  const [matchedAvatar, setMatchedAvatar] = useState<string | undefined>();
   const displayName = user?.email?.split('@')[0] ?? 'there';
 
   const loadDailyLimits = async () => {
@@ -168,7 +172,9 @@ export default function DiscoverPage() {
       });
 
       if (response.status === 'matched') {
-        alert('It\'s a match! You can now message them.');
+        setMatchedName(currentProfile.full_name || 'Someone');
+        setMatchedAvatar(currentProfile.avatar_url);
+        setMatchModalOpen(true);
       }
 
       await loadDailyLimits();
@@ -179,8 +185,7 @@ export default function DiscoverPage() {
         moveToNextProfile();
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to send like';
-      alert(errorMessage);
+      toast(err instanceof Error ? err.message : 'Failed to send like', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -233,12 +238,12 @@ export default function DiscoverPage() {
     <ProtectedRoute>
       <div className="min-h-screen">
         {/* Top header bar */}
-        <div className="border-b border-slate-200 bg-white px-6 lg:px-10 py-5">
+        <div className="border-b border-white/10 bg-white/5 backdrop-blur-xl px-6 lg:px-10 py-5">
           <div className="max-w-6xl">
-            <h1 className="text-2xl font-semibold text-slate-900">
+            <h1 className="text-2xl font-semibold text-white">
               Welcome, {displayName}
             </h1>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <p className="text-sm text-white/40 mt-0.5">
               Discover founders and investors that match your criteria.
             </p>
           </div>
@@ -250,12 +255,12 @@ export default function DiscoverPage() {
             <div className="flex-1 min-w-0">
               {/* Stats strip */}
               <div className="flex items-center gap-4 mb-6">
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs text-slate-600">
-                  <span className="font-semibold text-slate-900">{profiles.length > 0 ? profiles.length - currentIndex : 0}</span> profiles
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white/50">
+                  <span className="font-semibold text-white">{profiles.length > 0 ? profiles.length - currentIndex : 0}</span> profiles
                 </div>
                 {dailyLimits && (
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs text-slate-600">
-                    <span className="font-semibold text-slate-900">{dailyLimits.standard_likes_remaining}</span> likes today
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white/50">
+                    <span className="font-semibold text-white">{dailyLimits.standard_likes_remaining}</span> likes today
                   </div>
                 )}
 
@@ -264,8 +269,8 @@ export default function DiscoverPage() {
                   onClick={() => setFiltersOpen(!filtersOpen)}
                   className={`ml-auto flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
                     filtersOpen || selectedStages.length > 0 || selectedSectors.length > 0 || locationFilter.trim()
-                      ? 'bg-slate-900 text-white border-slate-900'
-                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                      ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                      : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/5'
                   }`}
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -273,7 +278,7 @@ export default function DiscoverPage() {
                   </svg>
                   Filters
                   {(selectedStages.length > 0 || selectedSectors.length > 0 || locationFilter.trim()) && (
-                    <span className="w-4 h-4 rounded-full bg-white text-slate-900 text-[10px] font-bold flex items-center justify-center">
+                    <span className="w-4 h-4 rounded-full bg-amber-400 text-[#060611] text-[10px] font-bold flex items-center justify-center">
                       {selectedStages.length + selectedSectors.length + (locationFilter.trim() ? 1 : 0)}
                     </span>
                   )}
@@ -290,10 +295,10 @@ export default function DiscoverPage() {
                     transition={{ duration: 0.2 }}
                     className="overflow-hidden mb-6"
                   >
-                    <div className="bg-white rounded-2xl border border-slate-200 p-5">
+                    <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-5">
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div>
-                          <p className="text-xs font-semibold text-slate-900 uppercase tracking-wider mb-2">Stage</p>
+                          <p className="text-xs font-semibold text-white uppercase tracking-wider mb-2">Stage</p>
                           <div className="space-y-1.5">
                             {STAGE_OPTIONS.map((stage) => (
                               <label key={stage} className="flex items-center gap-2 cursor-pointer group">
@@ -303,16 +308,16 @@ export default function DiscoverPage() {
                                   onChange={() => setSelectedStages((prev) =>
                                     prev.includes(stage) ? prev.filter((s) => s !== stage) : [...prev, stage]
                                   )}
-                                  className="w-3.5 h-3.5 rounded border-slate-300 text-slate-900 focus:ring-slate-900/20"
+                                  className="w-3.5 h-3.5 rounded border-white/20 text-amber-500 focus:ring-amber-500/20"
                                 />
-                                <span className="text-sm text-slate-600 group-hover:text-slate-900 transition-colors">{stage}</span>
+                                <span className="text-sm text-white/50 group-hover:text-white transition-colors">{stage}</span>
                               </label>
                             ))}
                           </div>
                         </div>
 
                         <div>
-                          <p className="text-xs font-semibold text-slate-900 uppercase tracking-wider mb-2">Sector</p>
+                          <p className="text-xs font-semibold text-white uppercase tracking-wider mb-2">Sector</p>
                           <div className="space-y-1.5">
                             {SECTOR_OPTIONS.map((sector) => (
                               <label key={sector} className="flex items-center gap-2 cursor-pointer group">
@@ -322,16 +327,16 @@ export default function DiscoverPage() {
                                   onChange={() => setSelectedSectors((prev) =>
                                     prev.includes(sector) ? prev.filter((s) => s !== sector) : [...prev, sector]
                                   )}
-                                  className="w-3.5 h-3.5 rounded border-slate-300 text-slate-900 focus:ring-slate-900/20"
+                                  className="w-3.5 h-3.5 rounded border-white/20 text-amber-500 focus:ring-amber-500/20"
                                 />
-                                <span className="text-sm text-slate-600 group-hover:text-slate-900 transition-colors">{sector}</span>
+                                <span className="text-sm text-white/50 group-hover:text-white transition-colors">{sector}</span>
                               </label>
                             ))}
                           </div>
                         </div>
 
                         <div>
-                          <p className="text-xs font-semibold text-slate-900 uppercase tracking-wider mb-2">Location</p>
+                          <p className="text-xs font-semibold text-white uppercase tracking-wider mb-2">Location</p>
                           <LocationAutocomplete
                             label=""
                             value={locationFilter}
@@ -342,11 +347,11 @@ export default function DiscoverPage() {
                         </div>
                       </div>
 
-                      <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-slate-100">
+                      <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-white/5">
                         <button
                           type="button"
                           onClick={handleClearFilters}
-                          className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 transition-colors"
+                          className="px-4 py-2 text-sm text-white/40 hover:text-white transition-colors"
                         >
                           Clear all
                         </button>
@@ -354,7 +359,7 @@ export default function DiscoverPage() {
                           type="button"
                           onClick={handleApplyFilters}
                           disabled={isApplyingFilters}
-                          className="px-6 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-colors disabled:opacity-50"
+                          className="px-6 py-2 rounded-xl bg-linear-to-r from-amber-400 to-yellow-500 text-[#060611] text-sm font-semibold hover:from-amber-500 hover:to-yellow-600 transition-colors disabled:opacity-50"
                         >
                           {isApplyingFilters ? 'Applying...' : 'Apply filters'}
                         </button>
@@ -366,21 +371,36 @@ export default function DiscoverPage() {
 
               {/* Content */}
               {isLoading && profiles.length === 0 ? (
-                <div className="flex items-center justify-center py-24">
-                  <div className="animate-spin w-8 h-8 border-2 border-slate-200 border-t-slate-900 rounded-full" />
+                <div className="space-y-4">
+                  <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden animate-pulse">
+                    <div className="h-64 bg-white/5" />
+                    <div className="p-6 space-y-3">
+                      <div className="h-6 w-48 bg-white/5 rounded-lg" />
+                      <div className="h-4 w-72 bg-white/5 rounded-lg" />
+                      <div className="flex gap-2 mt-4">
+                        <div className="h-8 w-20 bg-white/5 rounded-lg" />
+                        <div className="h-8 w-24 bg-white/5 rounded-lg" />
+                        <div className="h-8 w-16 bg-white/5 rounded-lg" />
+                      </div>
+                    </div>
+                    <div className="px-6 pb-5 flex gap-3">
+                      <div className="h-11 flex-1 bg-white/5 rounded-xl" />
+                      <div className="h-11 flex-1 bg-white/5 rounded-xl" />
+                    </div>
+                  </div>
                 </div>
               ) : error && profiles.length === 0 ? (
                 <div className="text-center py-24">
-                  <p className="text-red-500 text-sm mb-3">{error}</p>
+                  <p className="text-red-400 text-sm mb-3">{error}</p>
                   {!user?.profile_id ? (
-                    <Link href="/onboarding" className="text-sm font-medium text-slate-900 hover:underline">
+                    <Link href="/onboarding" className="text-sm font-medium text-white hover:underline">
                       Complete your profile
                     </Link>
                   ) : (
                     <button
                       type="button"
                       onClick={() => loadProfiles()}
-                      className="text-sm font-medium text-slate-900 hover:underline"
+                      className="text-sm font-medium text-white hover:underline"
                     >
                       Try again
                     </button>
@@ -390,13 +410,13 @@ export default function DiscoverPage() {
                 <div className="text-center py-24">
                   {(selectedStages.length > 0 || selectedSectors.length > 0 || locationFilter.trim()) ? (
                     <>
-                      <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-slate-100 flex items-center justify-center">
-                        <svg className="w-7 h-7 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-white/5 flex items-center justify-center">
+                        <svg className="w-7 h-7 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
                       </div>
-                      <h2 className="text-lg font-semibold text-slate-900 mb-1">No profiles match your filters</h2>
-                      <p className="text-sm text-slate-500 mb-1">
+                      <h2 className="text-lg font-semibold text-white mb-1">No profiles match your filters</h2>
+                      <p className="text-sm text-white/40 mb-1">
                         Active filters:{' '}
                         {[
                           ...selectedStages,
@@ -404,34 +424,34 @@ export default function DiscoverPage() {
                           ...(locationFilter.trim() ? [locationFilter.trim()] : []),
                         ].join(', ')}
                       </p>
-                      <p className="text-sm text-slate-400 mb-4">Try broadening your search or clearing some filters.</p>
+                      <p className="text-sm text-white/30 mb-4">Try broadening your search or clearing some filters.</p>
                       <button
                         type="button"
                         onClick={handleClearFilters}
-                        className="text-sm font-medium text-slate-900 hover:underline"
+                        className="text-sm font-medium text-white hover:underline"
                       >
                         Clear all filters
                       </button>
                     </>
                   ) : (
                     <>
-                      <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-slate-100 flex items-center justify-center">
-                        <svg className="w-7 h-7 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-white/5 flex items-center justify-center">
+                        <svg className="w-7 h-7 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 13l4 4L19 7" />
                         </svg>
                       </div>
-                      <h2 className="text-lg font-semibold text-slate-900 mb-1">All caught up</h2>
-                      <p className="text-sm text-slate-500 mb-4">You&apos;ve reviewed all available profiles.</p>
+                      <h2 className="text-lg font-semibold text-white mb-1">All caught up</h2>
+                      <p className="text-sm text-white/40 mb-4">You&apos;ve reviewed all available profiles.</p>
                       <div className="flex items-center justify-center gap-3">
-                        <Link href="/likes" className="text-sm font-medium text-slate-900 hover:underline">
+                        <Link href="/likes" className="text-sm font-medium text-white hover:underline">
                           View likes
                         </Link>
-                        <span className="text-slate-300">·</span>
-                        <Link href="/messages" className="text-sm font-medium text-slate-900 hover:underline">
+                        <span className="text-white/20">·</span>
+                        <Link href="/messages" className="text-sm font-medium text-white hover:underline">
                           Messages
                         </Link>
-                        <span className="text-slate-300">·</span>
-                        <button type="button" onClick={() => loadProfiles()} className="text-sm font-medium text-slate-900 hover:underline">
+                        <span className="text-white/20">·</span>
+                        <button type="button" onClick={() => loadProfiles()} className="text-sm font-medium text-white hover:underline">
                           Refresh
                         </button>
                       </div>
@@ -442,10 +462,10 @@ export default function DiscoverPage() {
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={currentProfile.id}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    transition={{ duration: 0.2 }}
+                    initial={{ opacity: 0, scale: 0.97, y: 16 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.97, x: -60 }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                   >
                     <ProfileCard
                       profile={currentProfile}
@@ -462,74 +482,74 @@ export default function DiscoverPage() {
             {/* Right sidebar */}
             <div className="hidden xl:block w-72 shrink-0 space-y-4">
               {/* Action items card */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-5">
-                <h3 className="text-sm font-semibold text-slate-900 mb-3">Your action items</h3>
+              <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-5">
+                <h3 className="text-sm font-semibold text-white mb-3">Your action items</h3>
                 <div className="space-y-2.5">
                   <Link
                     href="/likes"
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 transition-colors group"
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors group"
                   >
-                    <div className="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center">
-                      <svg className="w-4 h-4 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-8 h-8 rounded-lg bg-rose-500/10 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                       </svg>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-900 group-hover:text-slate-700">Check your likes</p>
-                      <p className="text-xs text-slate-500">See who&apos;s interested</p>
+                      <p className="text-sm font-medium text-white group-hover:text-white/70">Check your likes</p>
+                      <p className="text-xs text-white/40">See who&apos;s interested</p>
                     </div>
-                    <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" /></svg>
+                    <svg className="w-4 h-4 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" /></svg>
                   </Link>
 
                   <Link
                     href="/messages"
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 transition-colors group"
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors group"
                   >
-                    <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
-                      <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                       </svg>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-900 group-hover:text-slate-700">Messages</p>
-                      <p className="text-xs text-slate-500">Chat with matches</p>
+                      <p className="text-sm font-medium text-white group-hover:text-white/70">Messages</p>
+                      <p className="text-xs text-white/40">Chat with matches</p>
                     </div>
-                    <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" /></svg>
+                    <svg className="w-4 h-4 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" /></svg>
                   </Link>
 
                   <Link
                     href="/profile"
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 transition-colors group"
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors group"
                   >
-                    <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
-                      <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                       </svg>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-900 group-hover:text-slate-700">Edit profile</p>
-                      <p className="text-xs text-slate-500">Update your details</p>
+                      <p className="text-sm font-medium text-white group-hover:text-white/70">Edit profile</p>
+                      <p className="text-xs text-white/40">Update your details</p>
                     </div>
-                    <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" /></svg>
+                    <svg className="w-4 h-4 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" /></svg>
                   </Link>
                 </div>
               </div>
 
               {/* Quick tips card */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-5">
-                <h3 className="text-sm font-semibold text-slate-900 mb-2">Getting started</h3>
+              <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-5">
+                <h3 className="text-sm font-semibold text-white mb-2">Getting started</h3>
                 <div className="space-y-3">
                   <div className="flex items-start gap-2.5">
-                    <div className="w-5 h-5 rounded-full bg-slate-900 flex items-center justify-center text-white text-[10px] font-bold shrink-0 mt-0.5">1</div>
-                    <p className="text-xs text-slate-600 leading-relaxed">Browse profiles and express interest by clicking &ldquo;Interested.&rdquo;</p>
+                    <div className="w-5 h-5 rounded-full bg-linear-to-r from-amber-400 to-yellow-500 flex items-center justify-center text-[#060611] text-[10px] font-bold shrink-0 mt-0.5">1</div>
+                    <p className="text-xs text-white/50 leading-relaxed">Browse profiles and express interest by clicking &ldquo;Interested.&rdquo;</p>
                   </div>
                   <div className="flex items-start gap-2.5">
-                    <div className="w-5 h-5 rounded-full bg-slate-900 flex items-center justify-center text-white text-[10px] font-bold shrink-0 mt-0.5">2</div>
-                    <p className="text-xs text-slate-600 leading-relaxed">When both sides are interested, you&apos;ll match and can start messaging.</p>
+                    <div className="w-5 h-5 rounded-full bg-linear-to-r from-amber-400 to-yellow-500 flex items-center justify-center text-[#060611] text-[10px] font-bold shrink-0 mt-0.5">2</div>
+                    <p className="text-xs text-white/50 leading-relaxed">When both sides are interested, you&apos;ll match and can start messaging.</p>
                   </div>
                   <div className="flex items-start gap-2.5">
-                    <div className="w-5 h-5 rounded-full bg-slate-900 flex items-center justify-center text-white text-[10px] font-bold shrink-0 mt-0.5">3</div>
-                    <p className="text-xs text-slate-600 leading-relaxed">Complete your profile to improve match quality.</p>
+                    <div className="w-5 h-5 rounded-full bg-linear-to-r from-amber-400 to-yellow-500 flex items-center justify-center text-[#060611] text-[10px] font-bold shrink-0 mt-0.5">3</div>
+                    <p className="text-xs text-white/50 leading-relaxed">Complete your profile to improve match quality.</p>
                   </div>
                 </div>
               </div>
@@ -546,6 +566,13 @@ export default function DiscoverPage() {
             onClose={() => setIsDiligenceOpen(false)}
           />
         )}
+
+        <MatchModal
+          isOpen={matchModalOpen}
+          matchName={matchedName}
+          matchAvatar={matchedAvatar}
+          onClose={() => setMatchModalOpen(false)}
+        />
       </div>
     </ProtectedRoute>
   );

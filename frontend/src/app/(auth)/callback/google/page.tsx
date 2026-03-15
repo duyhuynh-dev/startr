@@ -43,18 +43,18 @@ export default function GoogleCallbackPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#fafafa' }}>
+      <div className="min-h-screen flex items-center justify-center bg-[#060611]">
         <div className="text-center max-w-md px-6">
-          <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
-            <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4">
+            <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </div>
-          <h2 className="text-lg font-semibold text-slate-900 mb-2">Sign-in failed</h2>
-          <p className="text-sm text-slate-500 mb-6">{error}</p>
+          <h2 className="text-lg font-semibold text-white mb-2">Sign-in failed</h2>
+          <p className="text-sm text-white/40 mb-6">{error}</p>
           <button
             onClick={() => router.push('/login')}
-            className="rounded-xl bg-slate-900 text-white px-6 py-2.5 text-sm font-medium hover:bg-slate-800 transition-colors"
+            className="rounded-xl bg-linear-to-r from-amber-400 to-yellow-500 text-[#060611] font-semibold px-6 py-2.5 text-sm hover:from-amber-500 hover:to-yellow-600 transition-colors"
           >
             Back to login
           </button>
@@ -64,10 +64,10 @@ export default function GoogleCallbackPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: '#fafafa' }}>
+    <div className="min-h-screen flex items-center justify-center bg-[#060611]">
       <div className="text-center">
-        <div className="animate-spin w-8 h-8 border-2 border-slate-200 border-t-slate-900 rounded-full mx-auto mb-4" />
-        <p className="text-sm text-slate-500">Completing sign-in...</p>
+        <div className="animate-spin w-8 h-8 border-2 border-white/10 border-t-amber-400 rounded-full mx-auto mb-4" />
+        <p className="text-sm text-white/40">Completing sign-in...</p>
       </div>
     </div>
   );

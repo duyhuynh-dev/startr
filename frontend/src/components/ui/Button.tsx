@@ -17,10 +17,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     const baseClasses = 'font-medium rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors';
 
     const variantClasses = {
-      primary: 'bg-slate-900 text-white hover:bg-slate-800 focus:ring-slate-900/30',
-      secondary: 'bg-slate-100 text-slate-700 hover:bg-slate-200 focus:ring-slate-300',
-      danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
-      outline: 'border border-slate-200 text-slate-700 hover:bg-slate-50 focus:ring-slate-300 bg-white',
+      primary: 'bg-linear-to-r from-amber-400 to-yellow-500 text-[#060611] font-semibold hover:from-amber-500 hover:to-yellow-600 focus:ring-amber-500/30',
+      secondary: 'bg-white/10 text-white/80 hover:bg-white/15 focus:ring-white/20',
+      danger: 'bg-red-500/20 text-red-400 hover:bg-red-500/30 focus:ring-red-500/30',
+      outline: 'border border-white/10 text-white/70 hover:bg-white/5 focus:ring-white/20 bg-transparent',
     };
 
     const sizeClasses = {

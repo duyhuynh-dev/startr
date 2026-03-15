@@ -4,6 +4,7 @@ import "./globals.css";
 import { ReactQueryProvider } from "@/lib/react-query";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { WebSocketProvider } from "@/contexts/WebSocketContext";
+import { ToastProvider } from "@/components/ui/Toast";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,7 +33,9 @@ export default function RootLayout({
       >
         <ReactQueryProvider>
           <AuthProvider>
-            <WebSocketProvider>{children}</WebSocketProvider>
+            <WebSocketProvider>
+              <ToastProvider>{children}</ToastProvider>
+            </WebSocketProvider>
           </AuthProvider>
         </ReactQueryProvider>
       </body>

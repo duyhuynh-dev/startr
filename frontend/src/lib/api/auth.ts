@@ -87,6 +87,28 @@ export const authApi = {
   },
 
   /**
+   * Request a password reset email
+   */
+  async requestPasswordReset(email: string): Promise<void> {
+    try {
+      await apiClient.post('/auth/password-reset/request', { email });
+    } catch (error) {
+      throw new Error(getErrorMessage(error));
+    }
+  },
+
+  /**
+   * Confirm password reset with token and new password
+   */
+  async confirmPasswordReset(token: string, new_password: string): Promise<void> {
+    try {
+      await apiClient.post('/auth/password-reset/confirm', { token, new_password });
+    } catch (error) {
+      throw new Error(getErrorMessage(error));
+    }
+  },
+
+  /**
    * Get Google OAuth authorization URL from the backend
    */
   async getGoogleAuthUrl(redirectUri: string): Promise<OAuthAuthorizationResponse> {

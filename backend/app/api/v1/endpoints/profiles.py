@@ -3,13 +3,13 @@ from __future__ import annotations
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlmodel import Session
 
 from app.core.exceptions import NotFoundError
 from app.core.config import settings
-from app.core.dependencies import get_optional_user
+from app.core.dependencies import get_current_user, get_optional_user
 from app.core.rate_limit import limiter
 from app.db.session import get_session
 from app.models.profile import Profile
@@ -178,8 +178,11 @@ def update_profile(
     profile_id: str,
     payload: ProfileUpdate,
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ) -> BaseProfile:
-    """Update a profile."""
+    """Update a profile. Only the owner can update their own profile."""
+    if current_user.profile_id != profile_id and not current_user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only update your own profile")
     profile = session.get(Profile, profile_id)
     if not profile:
         raise NotFoundError(resource="Profile", identifier=profile_id)

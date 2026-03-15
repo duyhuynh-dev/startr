@@ -127,13 +127,13 @@ export function Sidebar() {
     <div className="flex flex-col h-full">
       {/* Logo + collapse toggle */}
       <div className="px-4 py-5 flex items-center justify-between">
-        <Link href="/discover" className={`font-semibold text-slate-900 tracking-tight transition-all ${collapsed ? 'text-lg' : 'text-xl'}`}>
+        <Link href="/discover" className={`font-semibold text-white tracking-tight transition-all ${collapsed ? 'text-lg' : 'text-xl'}`}>
           {collapsed ? 'S' : 'Startr'}
         </Link>
         <button
           type="button"
           onClick={() => setCollapsed(!collapsed)}
-          className="hidden lg:flex w-7 h-7 items-center justify-center rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+          className="hidden lg:flex w-7 h-7 items-center justify-center rounded-md text-white/30 hover:text-white/60 hover:bg-white/10 transition-colors"
         >
           <svg className={`w-4 h-4 transition-transform ${collapsed ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 19l-7-7 7-7" />
@@ -146,22 +146,22 @@ export function Sidebar() {
         <button
           type="button"
           onClick={() => setProfileMenuOpen(!profileMenuOpen)}
-          className={`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-slate-100 transition-colors ${profileMenuOpen ? 'bg-slate-100' : ''}`}
+          className={`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-white/5 transition-colors ${profileMenuOpen ? 'bg-white/5' : ''}`}
         >
           {avatarUrl ? (
             <img src={avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
           ) : (
-            <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center text-white text-xs font-semibold shrink-0">
+            <div className="w-8 h-8 rounded-full bg-linear-to-br from-amber-400 to-yellow-500 flex items-center justify-center text-[#060611] text-xs font-semibold shrink-0">
               {initial}
             </div>
           )}
           {!collapsed && (
             <>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-900 truncate">{displayName}</p>
-                <p className="text-xs text-slate-500 truncate">{user?.email}</p>
+                <p className="text-sm font-medium text-white truncate">{displayName}</p>
+                <p className="text-xs text-white/40 truncate">{user?.email}</p>
               </div>
-              <svg className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${profileMenuOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className={`w-4 h-4 text-white/30 shrink-0 transition-transform ${profileMenuOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 9l-7 7-7-7" />
               </svg>
             </>
@@ -181,7 +181,7 @@ export function Sidebar() {
                 <Link
                   href="/profile"
                   onClick={() => setProfileMenuOpen(false)}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-white/50 hover:bg-white/5 hover:text-white transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                   Settings
@@ -189,7 +189,7 @@ export function Sidebar() {
                 <button
                   type="button"
                   onClick={() => { setProfileMenuOpen(false); logout(); }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-600 hover:bg-red-50 hover:text-red-600 transition-colors text-left"
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-white/50 hover:bg-red-500/10 hover:text-red-400 transition-colors text-left"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
                   Sign out
@@ -210,24 +210,24 @@ export function Sidebar() {
               href={item.href}
               className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                 active
-                  ? 'bg-slate-900 text-white'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                  ? 'bg-white/10 text-white'
+                  : 'text-white/40 hover:bg-white/5 hover:text-white'
               } ${collapsed ? 'justify-center' : ''}`}
               title={collapsed ? item.label : undefined}
             >
-              <span className={active ? 'text-white' : 'text-slate-500'}>{item.icon}</span>
+              <span className={active ? 'text-amber-400' : 'text-white/30'}>{item.icon}</span>
               {!collapsed && (
                 <span className="flex items-center gap-2 min-w-0">
                   <span className="truncate">{item.label}</span>
                   {item.href === '/notifications' && unreadNotifications > 0 && (
-                    <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-red-600 text-white text-[11px] font-semibold leading-none">
+                    <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-red-500 text-white text-[11px] font-semibold leading-none">
                       {unreadNotifications > 99 ? '99+' : unreadNotifications}
                     </span>
                   )}
                 </span>
               )}
               {collapsed && item.href === '/notifications' && unreadNotifications > 0 && (
-                <span className="absolute ml-5 -mt-2 inline-flex w-2 h-2 rounded-full bg-red-600" />
+                <span className="absolute ml-5 -mt-2 inline-flex w-2 h-2 rounded-full bg-red-500" />
               )}
             </Link>
           );
@@ -237,12 +237,12 @@ export function Sidebar() {
       {/* Bottom section */}
       <div className="px-3 pb-4 mt-auto">
         {!collapsed && (
-          <div className="rounded-xl bg-slate-50 border border-slate-100 p-4">
-            <p className="text-xs font-medium text-slate-900 mb-1">Need help?</p>
-            <p className="text-xs text-slate-500 mb-3">Learn how to get the most out of Startr.</p>
+          <div className="rounded-xl bg-white/3 border border-white/5 p-4">
+            <p className="text-xs font-medium text-white mb-1">Need help?</p>
+            <p className="text-xs text-white/40 mb-3">Learn how to get the most out of Startr.</p>
             <Link
               href="/discover"
-              className="text-xs font-medium text-slate-900 hover:underline"
+              className="text-xs font-medium text-amber-400 hover:underline"
             >
               View guide &rarr;
             </Link>
@@ -258,7 +258,7 @@ export function Sidebar() {
       <button
         type="button"
         onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-4 left-4 z-50 w-10 h-10 rounded-xl bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-600 hover:bg-slate-50 transition-colors"
+        className="lg:hidden fixed top-4 left-4 z-50 w-10 h-10 rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white/50 hover:bg-white/10 transition-colors"
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6h16M4 12h16M4 18h16" />
@@ -270,14 +270,14 @@ export function Sidebar() {
         {mobileOpen && (
           <>
             <motion.div
-              className="lg:hidden fixed inset-0 bg-black/20 backdrop-blur-sm z-40"
+              className="lg:hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setMobileOpen(false)}
             />
             <motion.div
-              className="lg:hidden fixed left-0 top-0 bottom-0 w-64 bg-white border-r border-slate-200 z-50 shadow-xl"
+              className="lg:hidden fixed left-0 top-0 bottom-0 w-64 bg-white/5 backdrop-blur-xl border-r border-white/10 z-50 shadow-2xl shadow-black/20"
               initial={{ x: '-100%' }}
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
@@ -287,7 +287,7 @@ export function Sidebar() {
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}
-                className="absolute top-4 right-4 w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                className="absolute top-4 right-4 w-8 h-8 rounded-lg flex items-center justify-center text-white/30 hover:text-white/60 hover:bg-white/10 transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
@@ -299,7 +299,7 @@ export function Sidebar() {
 
       {/* Desktop sidebar */}
       <motion.aside
-        className={`hidden lg:block fixed left-0 top-0 bottom-0 bg-white border-r border-slate-200 z-40 ${collapsed ? 'w-16' : 'w-60'}`}
+        className={`hidden lg:block fixed left-0 top-0 bottom-0 bg-white/5 backdrop-blur-xl border-r border-white/10 z-40 ${collapsed ? 'w-16' : 'w-60'}`}
         animate={{ width: collapsed ? 64 : 240 }}
         transition={{ duration: 0.2, ease: 'easeOut' }}
       >

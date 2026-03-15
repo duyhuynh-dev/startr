@@ -22,7 +22,7 @@ export function Skeleton({
   height,
   animation = 'pulse',
 }: SkeletonProps) {
-  const baseClasses = 'bg-gray-200 rounded';
+  const baseClasses = 'bg-white/10 rounded';
   
   const variantClasses = {
     text: 'h-4 rounded',
@@ -75,7 +75,7 @@ export function Skeleton({
  */
 export function SkeletonProfileCard() {
   return (
-    <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6 mb-24">
+    <div className="bg-white/5 backdrop-blur-xl rounded-lg border border-white/10 p-6 mb-24">
       <div className="space-y-4">
         <div className="space-y-2">
           <Skeleton variant="rectangular" height="2rem" width="60%" />

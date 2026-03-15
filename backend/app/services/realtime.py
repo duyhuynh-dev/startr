@@ -84,21 +84,19 @@ class ConnectionManager:
         return success
 
     async def broadcast_message(self, message: dict, match_id: str, session: Session) -> None:
-        """Broadcast a message to both users in a match."""
+        """Broadcast a message to the OTHER user in a match (not the sender)."""
         try:
-            # Get match to find both users
             match = session.get(Match, match_id)
             if not match:
                 logger.warning(f"Match {match_id} not found for broadcast")
                 return
-            
-            logger.info(f"Broadcasting message to match {match_id} (founder: {match.founder_id}, investor: {match.investor_id})")
-            
-            # Send to both founder and investor
-            founder_result = await self.send_personal_message(message, match.founder_id)
-            investor_result = await self.send_personal_message(message, match.investor_id)
-            
-            logger.info(f"Broadcast results - Founder: {founder_result}, Investor: {investor_result}")
+
+            sender_id = message.get("message", {}).get("sender_id")
+            recipient_id = match.investor_id if sender_id == match.founder_id else match.founder_id
+
+            logger.info(f"Broadcasting message to recipient {recipient_id} in match {match_id}")
+            result = await self.send_personal_message(message, recipient_id)
+            logger.info(f"Broadcast result for {recipient_id}: {result}")
         except Exception as e:
             logger.error(f"Error broadcasting message to match {match_id}: {e}", exc_info=True)
 

@@ -70,13 +70,12 @@ class NotificationsService:
         return results, next_cursor
 
     def unread_count(self, session: Session, *, recipient_id: str) -> int:
-        return int(
-            session.exec(
-                select(func.count())
-                .select_from(Notification)
-                .where(Notification.recipient_id == recipient_id, Notification.read_at.is_(None))
-            ).one()
-        )
+        count = session.exec(
+            select(func.count())
+            .select_from(Notification)
+            .where(Notification.recipient_id == recipient_id, Notification.read_at.is_(None))
+        ).scalar_one()
+        return int(count or 0)
 
     def mark_read(self, session: Session, *, notification_id: str, recipient_id: str) -> Notification | None:
         notif = session.get(Notification, notification_id)

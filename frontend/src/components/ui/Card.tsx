@@ -21,7 +21,7 @@ export function Card({ children, padding = 'md', className = '', ...props }: Car
 
   return (
     <div
-      className={`bg-white rounded-2xl border border-slate-200 shadow-sm ${paddingClasses[padding]} ${className}`}
+      className={`bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 ${paddingClasses[padding]} ${className}`}
       {...props}
     >
       {children}
@@ -39,7 +39,7 @@ export function CardHeader({ children, className = '' }: { children: ReactNode; 
 
 export function CardTitle({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <h3 className={`text-xl font-semibold text-slate-900 ${className}`}>
+    <h3 className={`text-xl font-semibold text-white ${className}`}>
       {children}
     </h3>
   );

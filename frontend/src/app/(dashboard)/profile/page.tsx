@@ -1,5 +1,5 @@
 /**
- * Profile page – Clean light theme
+ * Profile page – Dark glassmorphism theme
  */
 
 'use client';
@@ -166,23 +166,23 @@ export default function ProfilePage() {
     setError('');
   };
 
-  const inputCls = 'w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-300 transition-colors';
+  const inputCls = 'w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-white/20 transition-colors';
 
   return (
     <ProtectedRoute>
       <div className="min-h-screen">
         {/* Header */}
-        <div className="border-b border-slate-200 bg-white px-6 lg:px-10 py-5">
+        <div className="border-b border-white/10 bg-white/5 backdrop-blur-xl px-6 lg:px-10 py-5">
           <div className="flex items-center justify-between max-w-3xl">
             <div>
-              <h1 className="text-2xl font-semibold text-slate-900">Profile</h1>
-              <p className="text-sm text-slate-500 mt-0.5">Manage your profile and settings.</p>
+              <h1 className="text-2xl font-semibold text-white">Profile</h1>
+              <p className="text-sm text-white/40 mt-0.5">Manage your profile and settings.</p>
             </div>
             {profile && !isEditing && (
               <button
                 type="button"
                 onClick={() => setIsEditing(true)}
-                className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                className="px-4 py-2 rounded-xl border border-white/10 text-sm font-medium text-white/70 hover:bg-white/5 transition-colors"
               >
                 Edit profile
               </button>
@@ -194,29 +194,29 @@ export default function ProfilePage() {
           <div className="max-w-3xl">
             {isLoading ? (
               <div className="flex items-center justify-center py-24">
-                <div className="animate-spin w-8 h-8 border-2 border-slate-200 border-t-slate-900 rounded-full" />
+                <div className="animate-spin w-8 h-8 border-2 border-white/10 border-t-amber-400 rounded-full" />
               </div>
             ) : !profile ? (
               <div className="text-center py-24">
-                <p className="text-red-500 text-sm">{error || 'Profile not found'}</p>
+                <p className="text-red-400 text-sm">{error || 'Profile not found'}</p>
               </div>
             ) : (
               <div className="space-y-6">
                 {error && (
-                  <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm">{error}</div>
+                  <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl text-sm">{error}</div>
                 )}
                 {success && (
-                  <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl text-sm">{success}</div>
+                  <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-4 py-3 rounded-xl text-sm">{success}</div>
                 )}
 
                 {/* Basic info card */}
-                <div className="bg-white rounded-2xl border border-slate-200 p-6">
+                <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-6">
                   <div className="flex items-center gap-4 mb-6">
                     <div className="relative group">
                       {profile.avatar_url ? (
                         <img src={profile.avatar_url} alt="" className="w-16 h-16 rounded-full object-cover" />
                       ) : (
-                        <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-xl font-semibold text-slate-700">
+                        <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center text-xl font-semibold text-white/70">
                           {profile.full_name?.charAt(0)?.toUpperCase() || '?'}
                         </div>
                       )}
@@ -244,9 +244,9 @@ export default function ProfilePage() {
                       />
                     </div>
                     <div>
-                      <h2 className="text-lg font-semibold text-slate-900">{profile.full_name}</h2>
-                      <p className="text-sm text-slate-500">{user?.email}</p>
-                      <span className="inline-flex items-center px-2 py-0.5 mt-1 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-slate-100 text-slate-600">
+                      <h2 className="text-lg font-semibold text-white">{profile.full_name}</h2>
+                      <p className="text-sm text-white/40">{user?.email}</p>
+                      <span className="inline-flex items-center px-2 py-0.5 mt-1 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-white/5 text-white/50">
                         {profile.role}
                       </span>
                     </div>
@@ -254,29 +254,29 @@ export default function ProfilePage() {
 
                   {/* Verification */}
                   {verificationStatus && (
-                    <div className="border-t border-slate-100 pt-4 mb-4">
+                    <div className="border-t border-white/5 pt-4 mb-4">
                       {verificationStatus.email_verified ? (
                         <div className="flex items-center gap-2 text-sm">
-                          <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center">
-                            <svg className="w-3 h-3 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                          <div className="w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                            <svg className="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
                           </div>
-                          <span className="text-emerald-700 font-medium">Email verified</span>
+                          <span className="text-emerald-400 font-medium">Email verified</span>
                         </div>
                       ) : (
-                        <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
-                          <p className="text-sm text-amber-800 font-medium mb-2">Verify your email</p>
+                        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4">
+                          <p className="text-sm text-amber-400 font-medium mb-2">Verify your email</p>
                           {!showOTPInput ? (
                             <button
                               type="button"
                               onClick={handleRequestOTP}
                               disabled={isRequestingOTP}
-                              className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-medium hover:bg-slate-800 transition-colors disabled:opacity-50"
+                              className="px-4 py-2 rounded-xl bg-linear-to-r from-amber-400 to-yellow-500 text-[#060611] text-xs font-semibold hover:from-amber-500 hover:to-yellow-600 transition-colors disabled:opacity-50"
                             >
                               {isRequestingOTP ? 'Sending...' : 'Send verification code'}
                             </button>
                           ) : (
                             <div className="space-y-2">
-                              {otpMessage && <p className="text-xs text-emerald-600">{otpMessage}</p>}
+                              {otpMessage && <p className="text-xs text-emerald-400">{otpMessage}</p>}
                               <div className="flex gap-2">
                                 <input
                                   type="text"
@@ -284,13 +284,13 @@ export default function ProfilePage() {
                                   onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                                   placeholder="6-digit code"
                                   maxLength={6}
-                                  className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm text-center tracking-widest font-mono focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                                  className="flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white text-center tracking-widest font-mono focus:outline-none focus:ring-2 focus:ring-amber-500/20"
                                 />
                                 <button
                                   type="button"
                                   onClick={handleVerifyOTP}
                                   disabled={isVerifyingOTP || otpCode.length !== 6}
-                                  className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-medium hover:bg-slate-800 transition-colors disabled:opacity-50"
+                                  className="px-4 py-2 rounded-xl bg-linear-to-r from-amber-400 to-yellow-500 text-[#060611] text-xs font-semibold hover:from-amber-500 hover:to-yellow-600 transition-colors disabled:opacity-50"
                                 >
                                   {isVerifyingOTP ? 'Verifying...' : 'Verify'}
                                 </button>
@@ -299,7 +299,7 @@ export default function ProfilePage() {
                                 type="button"
                                 onClick={handleRequestOTP}
                                 disabled={isRequestingOTP}
-                                className="text-xs text-slate-500 hover:text-slate-700 transition-colors"
+                                className="text-xs text-white/40 hover:text-white/70 transition-colors"
                               >
                                 Resend code
                               </button>
@@ -334,8 +334,8 @@ export default function ProfilePage() {
                 </div>
 
                 {/* Role-specific card */}
-                <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                  <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-4">
+                <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-6">
+                  <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-4">
                     {profile.role === 'investor' ? 'Investment details' : 'Startup details'}
                   </h3>
 
@@ -373,20 +373,20 @@ export default function ProfilePage() {
                         </div>
                         {profile.focus_sectors && profile.focus_sectors.length > 0 && (
                           <div>
-                            <label className="block text-xs font-medium text-slate-500 mb-1.5">Sectors</label>
+                            <label className="block text-xs font-medium text-white/40 mb-1.5">Sectors</label>
                             <div className="flex flex-wrap gap-1.5">
                               {profile.focus_sectors.map((s) => (
-                                <span key={s} className="px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-700">{s}</span>
+                                <span key={s} className="px-2.5 py-1 rounded-lg bg-white/3 border border-white/10 text-xs text-white/70">{s}</span>
                               ))}
                             </div>
                           </div>
                         )}
                         {profile.focus_stages && profile.focus_stages.length > 0 && (
                           <div>
-                            <label className="block text-xs font-medium text-slate-500 mb-1.5">Stages</label>
+                            <label className="block text-xs font-medium text-white/40 mb-1.5">Stages</label>
                             <div className="flex flex-wrap gap-1.5">
                               {profile.focus_stages.map((s) => (
-                                <span key={s} className="px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-700">{s}</span>
+                                <span key={s} className="px-2.5 py-1 rounded-lg bg-white/3 border border-white/10 text-xs text-white/70">{s}</span>
                               ))}
                             </div>
                           </div>
@@ -445,10 +445,10 @@ export default function ProfilePage() {
                         </div>
                         {profile.focus_markets && profile.focus_markets.length > 0 && (
                           <div>
-                            <label className="block text-xs font-medium text-slate-500 mb-1.5">Markets</label>
+                            <label className="block text-xs font-medium text-white/40 mb-1.5">Markets</label>
                             <div className="flex flex-wrap gap-1.5">
                               {profile.focus_markets.map((m) => (
-                                <span key={m} className="px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-700">{m}</span>
+                                <span key={m} className="px-2.5 py-1 rounded-lg bg-white/3 border border-white/10 text-xs text-white/70">{m}</span>
                               ))}
                             </div>
                           </div>
@@ -460,12 +460,12 @@ export default function ProfilePage() {
 
                 {/* Prompts card */}
                 {profile.prompts && profile.prompts.length > 0 && (
-                  <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                    <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-4">Prompts</h3>
+                  <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-6">
+                    <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-4">Prompts</h3>
                     <div className="space-y-3">
                       {profile.prompts.map((prompt, idx) => (
-                        <div key={idx} className="bg-slate-50 rounded-xl p-4">
-                          <p className="text-sm text-slate-700 leading-relaxed">{prompt.content}</p>
+                        <div key={idx} className="bg-white/3 rounded-xl p-4">
+                          <p className="text-sm text-white/70 leading-relaxed">{prompt.content}</p>
                         </div>
                       ))}
                     </div>
@@ -479,7 +479,7 @@ export default function ProfilePage() {
                       type="button"
                       onClick={handleSave}
                       disabled={isSaving}
-                      className="px-6 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-colors disabled:opacity-50"
+                      className="px-6 py-2.5 rounded-xl bg-linear-to-r from-amber-400 to-yellow-500 text-[#060611] text-sm font-semibold hover:from-amber-500 hover:to-yellow-600 transition-colors disabled:opacity-50"
                     >
                       {isSaving ? 'Saving...' : 'Save changes'}
                     </button>
@@ -487,7 +487,7 @@ export default function ProfilePage() {
                       type="button"
                       onClick={handleCancel}
                       disabled={isSaving}
-                      className="px-6 py-2.5 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                      className="px-6 py-2.5 rounded-xl border border-white/10 text-sm font-medium text-white/70 hover:bg-white/5 transition-colors"
                     >
                       Cancel
                     </button>
@@ -510,9 +510,9 @@ function Field({ label, value, editing, children }: {
 }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-slate-500 mb-1.5">{label}</label>
+      <label className="block text-xs font-medium text-white/40 mb-1.5">{label}</label>
       {editing ? children : (
-        <p className="text-sm text-slate-900">{value || <span className="text-slate-400">Not set</span>}</p>
+        <p className="text-sm text-white">{value || <span className="text-white/30">Not set</span>}</p>
       )}
     </div>
   );

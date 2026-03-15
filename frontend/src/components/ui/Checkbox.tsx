@@ -17,17 +17,17 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
           <input
             ref={ref}
             type="checkbox"
-            className={`h-4 w-4 text-slate-900 focus:ring-slate-900/20 border-slate-300 rounded ${className}`}
+            className={`h-4 w-4 text-amber-500 focus:ring-amber-500/20 border-white/20 rounded bg-white/5 ${className}`}
             {...props}
           />
           {label && (
-            <span className={`ml-2 text-sm ${error ? 'text-red-500' : 'text-slate-700 group-hover:text-slate-900'} transition-colors`}>
+            <span className={`ml-2 text-sm ${error ? 'text-red-400' : 'text-white/70 group-hover:text-white'} transition-colors`}>
               {label}
             </span>
           )}
         </label>
         {error && (
-          <p className="mt-1 text-sm text-red-500">{error}</p>
+          <p className="mt-1 text-sm text-red-400">{error}</p>
         )}
       </div>
     );

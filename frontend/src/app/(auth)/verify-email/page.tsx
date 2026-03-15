@@ -128,10 +128,10 @@ function VerifyEmailContent() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12" style={{ background: '#fafafa' }}>
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12 bg-[#060611]">
       <div className="w-full max-w-md">
         {/* Logo */}
-        <Link href="/" className="text-2xl font-semibold tracking-tight text-slate-900 mb-10 inline-block">
+        <Link href="/" className="text-2xl font-semibold tracking-tight text-white mb-10 inline-block">
           Startr
         </Link>
 
@@ -140,10 +140,10 @@ function VerifyEmailContent() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
         >
-          <h1 className="text-3xl font-semibold text-slate-900 mb-2">Verify your email</h1>
-          <p className="text-slate-500 text-sm mb-8">
+          <h1 className="text-3xl font-semibold text-white mb-2">Verify your email</h1>
+          <p className="text-white/40 text-sm mb-8">
             {otpSent
-              ? <>We sent a 6-digit code to <span className="font-medium text-slate-700">{email}</span></>
+              ? <>We sent a 6-digit code to <span className="font-medium text-white/70">{email}</span></>
               : 'Enter your email to receive a verification code.'}
           </p>
 
@@ -154,16 +154,16 @@ function VerifyEmailContent() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@work-email.com"
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-300 transition-colors"
+                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-white/20 transition-colors"
               />
 
-              {error && <p className="text-red-500 text-sm">{error}</p>}
+              {error && <p className="text-red-400 text-sm">{error}</p>}
 
               <button
                 type="button"
                 onClick={() => handleRequestOTP()}
                 disabled={isRequestingOTP || !email.trim()}
-                className="w-full rounded-xl bg-slate-900 text-white py-3 text-sm font-medium hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-full rounded-xl bg-linear-to-r from-amber-400 to-yellow-500 text-[#060611] font-semibold py-3 text-sm hover:from-amber-500 hover:to-yellow-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {isRequestingOTP ? 'Sending...' : 'Send verification code'}
               </button>
@@ -183,19 +183,19 @@ function VerifyEmailContent() {
                     onChange={(e) => handleOtpChange(i, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(i, e)}
                     disabled={isLoading}
-                    className="w-12 h-14 rounded-xl border border-slate-200 bg-white text-center text-xl font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-colors disabled:opacity-50"
+                    className="w-12 h-14 rounded-xl border border-white/10 bg-white/5 text-center text-xl font-semibold text-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-white/20 transition-colors disabled:opacity-50"
                   />
                 ))}
               </div>
 
-              {error && <p className="text-red-500 text-sm text-center">{error}</p>}
-              {success && <p className="text-emerald-600 text-sm text-center">{success}</p>}
+              {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+              {success && <p className="text-emerald-400 text-sm text-center">{success}</p>}
 
               <button
                 type="button"
                 onClick={() => handleVerifyOTP()}
                 disabled={isLoading || otpDigits.some((d) => d === '')}
-                className="w-full rounded-xl bg-slate-900 text-white py-3 text-sm font-medium hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-full rounded-xl bg-linear-to-r from-amber-400 to-yellow-500 text-[#060611] font-semibold py-3 text-sm hover:from-amber-500 hover:to-yellow-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {isLoading ? 'Verifying...' : 'Verify email'}
               </button>
@@ -205,7 +205,7 @@ function VerifyEmailContent() {
                   type="button"
                   onClick={() => handleRequestOTP()}
                   disabled={countdown > 0 || isRequestingOTP}
-                  className="text-slate-500 hover:text-slate-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="text-white/40 hover:text-white/70 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {countdown > 0 ? `Resend in ${countdown}s` : 'Resend code'}
                 </button>
@@ -218,7 +218,7 @@ function VerifyEmailContent() {
                     setError('');
                     setSuccess('');
                   }}
-                  className="text-slate-500 hover:text-slate-700 transition-colors"
+                  className="text-white/40 hover:text-white/70 transition-colors"
                 >
                   Change email
                 </button>
@@ -227,8 +227,8 @@ function VerifyEmailContent() {
           )}
         </motion.div>
 
-        <p className="text-sm text-slate-400 mt-8 text-center">
-          <Link href="/login" className="hover:text-slate-600 transition-colors">
+        <p className="text-sm text-white/30 mt-8 text-center">
+          <Link href="/login" className="text-amber-400 hover:text-amber-300 transition-colors">
             Back to sign in
           </Link>
         </p>
@@ -240,8 +240,8 @@ function VerifyEmailContent() {
 export default function VerifyEmailPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#fafafa' }}>
-        <div className="animate-spin w-8 h-8 border-2 border-slate-300 border-t-slate-900 rounded-full" />
+      <div className="min-h-screen flex items-center justify-center bg-[#060611]">
+        <div className="animate-spin w-8 h-8 border-2 border-white/10 border-t-amber-400 rounded-full" />
       </div>
     }>
       <VerifyEmailContent />

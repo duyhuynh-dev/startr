@@ -24,7 +24,7 @@ interface Step2FounderProps {
 export function OnboardingStep2Founder({ data, onChange }: Step2FounderProps) {
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-semibold text-slate-900 mb-4">Founder Information</h2>
+      <h2 className="text-xl font-semibold text-white mb-4">Founder Information</h2>
 
       <Input
         label="Company Name"

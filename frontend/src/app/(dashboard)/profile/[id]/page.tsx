@@ -57,20 +57,20 @@ export default function ViewProfilePage() {
   return (
     <ProtectedRoute>
       <div className="min-h-screen">
-        <div className="border-b border-slate-200 bg-white px-6 lg:px-10 py-5">
+        <div className="border-b border-white/10 bg-white/5 backdrop-blur-xl px-6 lg:px-10 py-5">
           <div className="flex items-center gap-4 max-w-3xl">
             <button
               type="button"
               onClick={() => router.back()}
-              className="p-2 -ml-2 rounded-lg hover:bg-slate-100 transition-colors"
+              className="p-2 -ml-2 rounded-lg hover:bg-white/5 transition-colors"
             >
-              <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
             <div>
-              <h1 className="text-2xl font-semibold text-slate-900">Profile</h1>
-              <p className="text-sm text-slate-500 mt-0.5">View profile information</p>
+              <h1 className="text-2xl font-semibold text-white">Profile</h1>
+              <p className="text-sm text-white/40 mt-0.5">View profile information</p>
             </div>
           </div>
         </div>
@@ -79,12 +79,12 @@ export default function ViewProfilePage() {
           <div className="max-w-3xl">
             {isLoading ? (
               <div className="flex justify-center py-24">
-                <div className="animate-spin w-8 h-8 border-2 border-slate-200 border-t-slate-900 rounded-full" />
+                <div className="animate-spin w-8 h-8 border-2 border-white/10 border-t-amber-400 rounded-full" />
               </div>
             ) : error || !profile ? (
               <div className="text-center py-24">
-                <p className="text-red-500 text-sm mb-4">{error || 'Profile not found'}</p>
-                <Link href="/discover" className="text-sm font-medium text-slate-900 hover:underline">
+                <p className="text-red-400 text-sm mb-4">{error || 'Profile not found'}</p>
+                <Link href="/discover" className="text-sm font-medium text-amber-400 hover:text-amber-300 hover:underline">
                   Back to Discover
                 </Link>
               </div>

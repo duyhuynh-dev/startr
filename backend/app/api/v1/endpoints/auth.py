@@ -6,6 +6,7 @@ from datetime import timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import HTMLResponse
 from sqlmodel import Session
 
 from app.core.config import settings
@@ -42,6 +43,53 @@ router = APIRouter()
 def get_turnstile_site_key() -> dict:
     """Return Turnstile site key for frontend widget."""
     return {"site_key": settings.turnstile_site_key or ""}
+
+
+@router.get(
+    "/turnstile/mobile",
+    summary="Turnstile widget page (mobile WebView)",
+    description="HTML page that renders Turnstile and posts token to React Native WebView.",
+    response_class=HTMLResponse,
+)
+def turnstile_mobile_page() -> HTMLResponse:
+    site_key = settings.turnstile_site_key or ""
+    html = f"""<!doctype html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    <style>
+      html, body {{ height: 100%; margin: 0; background: #0b1120; color: #fff; font-family: -apple-system, system-ui; }}
+      .wrap {{ height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; }}
+      .card {{ width: 100%; max-width: 360px; background: rgba(15,23,42,0.96); border: 1px solid rgba(148,163,184,0.25); border-radius: 18px; padding: 18px; }}
+      .title {{ font-size: 16px; font-weight: 700; color: #fbbf24; margin-bottom: 8px; text-align: center; }}
+      .sub {{ font-size: 12px; color: #cbd5f5; margin-bottom: 12px; text-align: center; }}
+      .widget {{ display:flex; justify-content:center; }}
+      .hint {{ font-size: 12px; color: #9ca3af; margin-top: 12px; text-align: center; }}
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <div class="title">Verify</div>
+        <div class="sub">Please complete the quick check to continue.</div>
+        <div class="widget">
+          <div class="cf-turnstile"
+               data-sitekey="{site_key}"
+               data-theme="dark"
+               data-callback="onToken"></div>
+        </div>
+        <div class="hint">If this doesn’t load, ensure Turnstile site key is configured.</div>
+      </div>
+    </div>
+    <script>
+      function onToken(token) {{
+        try {{ window.ReactNativeWebView.postMessage(token); }} catch (e) {{}}
+      }}
+    </script>
+  </body>
+</html>"""
+    return HTMLResponse(content=html)
 
 
 @router.post(
@@ -90,8 +138,11 @@ async def signup(
     session: Session = Depends(get_session),
 ) -> UserResponse:
     """Create a new user account."""
-    if not await verify_turnstile(request.turnstile_token, http_request.client.host if http_request.client else None):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Verification failed. Please try again.")
+    client_header = (http_request.headers.get("x-client") or "").lower()
+    is_mobile_client = client_header == "mobile"
+    if not is_mobile_client:
+        if not await verify_turnstile(request.turnstile_token, http_request.client.host if http_request.client else None):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Verification failed. Please try again.")
     try:
         user, profile = auth_service.signup(
             session=session,
@@ -153,8 +204,19 @@ async def login(
     session: Session = Depends(get_session),
 ) -> TokenResponse:
     """Login with email and password."""
-    if not await verify_turnstile(request.turnstile_token, http_request.client.host if http_request.client else None):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Verification failed. Please try again.")
+    client_header = (http_request.headers.get("x-client") or "").lower()
+    is_mobile_client = client_header == "mobile"
+
+    # For native mobile app we currently skip Turnstile to keep UX clean.
+    if not is_mobile_client:
+        if not await verify_turnstile(
+            request.turnstile_token,
+            http_request.client.host if http_request.client else None,
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Verification failed. Please try again.",
+            )
     try:
         user, access_token, refresh_token = auth_service.login(
             session=session,
@@ -342,15 +404,29 @@ def oauth_authorize(
         )
 
 
+@router.get(
+    "/oauth/{provider}/callback",
+    response_class=HTMLResponse,
+    summary="OAuth redirect landing (GET)",
+    description="When the OAuth provider (e.g. Google) redirects the user to this URL with ?code=...&state=..., this returns a simple success page. The mobile app intercepts the URL and exchanges the code via POST.",
+)
+def oauth_callback_get(provider: str):
+    """Return a simple HTML page so the WebView shows success instead of 405."""
+    return HTMLResponse(
+        content="""<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign in successful</title></head><body style="font-family:system-ui,sans-serif;background:#0d0e1a;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;"><p style="font-size:18px;">Sign-in successful. You can close this window.</p></body></html>""",
+        status_code=200,
+    )
+
+
 @router.post(
     "/oauth/{provider}/callback",
     response_model=TokenResponse,
     summary="OAuth callback",
     description="""
     Handle OAuth callback and create/login user.
-    
+
     **Providers:** `linkedin`, `google`, `firebase`
-    
+
     **For LinkedIn/Google:**
     ```json
     {
@@ -358,14 +434,14 @@ def oauth_authorize(
         "state": "random-state-string"
     }
     ```
-    
+
     **For Firebase:**
     ```json
     {
         "id_token": "firebase-id-token-from-client-sdk"
     }
     ```
-    
+
     **Example Response:**
     ```json
     {
@@ -375,7 +451,7 @@ def oauth_authorize(
         "expires_in": 1800
     }
     ```
-    
+
     **Note:** Requires API keys to be configured. See `.env` for OAuth settings.
     """,
 )

@@ -4,8 +4,8 @@
 
 // API Configuration
 export const API_TIMEOUT_MS = 30000; // 30 seconds
-export const DEFAULT_API_BASE_URL = 'http://localhost:8000/api/v1';
-export const DEFAULT_WS_BASE_URL = 'ws://localhost:8000/api/v1/realtime/ws';
+export const DEFAULT_API_BASE_URL = 'http://localhost:8012/api/v1';
+export const DEFAULT_WS_BASE_URL = 'ws://localhost:8012/api/v1/realtime/ws';
 
 // WebSocket Configuration
 export const WS_PING_INTERVAL_MS = 30000; // 30 seconds

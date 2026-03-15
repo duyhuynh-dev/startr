@@ -156,7 +156,7 @@ export function LocationAutocomplete({
   return (
     <div ref={wrapperRef} className={`relative w-full ${className}`}>
       {label && (
-        <label className="block text-sm font-medium text-slate-700 mb-1.5">{label}</label>
+        <label className="block text-sm font-medium text-white/70 mb-1.5">{label}</label>
       )}
       <input
         type="text"
@@ -166,17 +166,17 @@ export function LocationAutocomplete({
         onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
         placeholder={placeholder}
         autoComplete="off"
-        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-sm placeholder:text-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-300 transition-colors"
+        className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-sm placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-white/20 transition-colors"
       />
 
       {isLoading && (
-        <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg p-3">
-          <p className="text-sm text-slate-400 text-center">Searching...</p>
+        <div className="absolute z-10 w-full mt-1 bg-[#0d0e1a] border border-white/10 rounded-xl shadow-lg p-3">
+          <p className="text-sm text-white/30 text-center">Searching...</p>
         </div>
       )}
 
       {showSuggestions && suggestions.length > 0 && !isLoading && (
-        <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-60 overflow-y-auto py-1">
+        <div className="absolute z-10 w-full mt-1 bg-[#0d0e1a] border border-white/10 rounded-xl shadow-lg max-h-60 overflow-y-auto py-1">
           {suggestions.map((suggestion, index) => {
             const name = suggestion.display_name;
             const matchLen = queryLower.length;
@@ -187,15 +187,15 @@ export function LocationAutocomplete({
               <button
                 key={suggestion.place_id}
                 type="button"
-                className={`w-full text-left px-4 py-2.5 hover:bg-slate-50 focus:bg-slate-50 focus:outline-none transition-colors ${
-                  index === selectedIndex ? 'bg-slate-50' : ''
+                className={`w-full text-left px-4 py-2.5 hover:bg-white/5 focus:bg-white/5 focus:outline-none transition-colors ${
+                  index === selectedIndex ? 'bg-white/5' : ''
                 }`}
                 onClick={() => handleSelect(suggestion)}
                 onMouseEnter={() => setSelectedIndex(index)}
               >
-                <p className="text-sm text-slate-900">
+                <p className="text-sm text-white">
                   <span className="font-medium">{nameStart}</span>
-                  <span className="text-slate-500">{nameRest}</span>
+                  <span className="text-white/40">{nameRest}</span>
                 </p>
               </button>
             );

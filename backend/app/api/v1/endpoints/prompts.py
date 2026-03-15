@@ -5,8 +5,10 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, Query, status
 from sqlmodel import Session
 
+from app.core.dependencies import get_admin_user
 from app.core.exceptions import NotFoundError
 from app.db.session import get_session
+from app.models.user import User
 from app.schemas.prompt_template import (
     PromptTemplateCreate,
     PromptTemplateResponse,
@@ -68,7 +70,7 @@ router = APIRouter()
     },
 )
 def create_template(
-    payload: PromptTemplateCreate, session: Session = Depends(get_session)
+    payload: PromptTemplateCreate, session: Session = Depends(get_session), admin: User = Depends(get_admin_user),
 ) -> PromptTemplateResponse:
     """Create a new prompt template."""
     template = prompt_template_service.create_template(session, payload)
@@ -174,6 +176,7 @@ def update_template(
     template_id: str,
     payload: PromptTemplateUpdate,
     session: Session = Depends(get_session),
+    admin: User = Depends(get_admin_user),
 ) -> PromptTemplateResponse:
     """Update a prompt template."""
     template = prompt_template_service.update_template(session, template_id, payload)
@@ -193,7 +196,7 @@ def update_template(
     },
 )
 def delete_template(
-    template_id: str, session: Session = Depends(get_session)
+    template_id: str, session: Session = Depends(get_session), admin: User = Depends(get_admin_user),
 ) -> None:
     """Delete a prompt template."""
     success = prompt_template_service.delete_template(session, template_id)
