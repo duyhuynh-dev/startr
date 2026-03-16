@@ -341,11 +341,14 @@ class OAuthService:
                 
                 if not user:
                     is_new_user = True
+                    # OAuth-only users do not have a local password; use an empty
+                    # string to satisfy older schemas where password_hash is NOT NULL.
                     user = User(
                         email=email or f"google_{google_id}@oauth.local",
                         google_id=google_id,
                         is_active=True,
                         is_verified=True,
+                        password_hash="",
                     )
                     session.add(user)
                     session.flush()
