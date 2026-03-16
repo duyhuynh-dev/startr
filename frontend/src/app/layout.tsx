@@ -5,6 +5,7 @@ import { ReactQueryProvider } from "@/lib/react-query";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { WebSocketProvider } from "@/contexts/WebSocketContext";
 import { ToastProvider } from "@/components/ui/Toast";
+import { SafariDetect } from "@/components/SafariDetect";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,16 +29,25 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var u=navigator.userAgent,v=navigator.vendor;if(/^((?!chrome|android).)*safari/i.test(u)||(v==='Apple Computer, Inc.'&&!window.chrome))document.documentElement.setAttribute('data-safari','true');})();`,
+          }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <ReactQueryProvider>
-          <AuthProvider>
-            <WebSocketProvider>
-              <ToastProvider>{children}</ToastProvider>
-            </WebSocketProvider>
-          </AuthProvider>
-        </ReactQueryProvider>
+        <SafariDetect>
+          <ReactQueryProvider>
+            <AuthProvider>
+              <WebSocketProvider>
+                <ToastProvider>{children}</ToastProvider>
+              </WebSocketProvider>
+            </AuthProvider>
+          </ReactQueryProvider>
+        </SafariDetect>
       </body>
     </html>
   );

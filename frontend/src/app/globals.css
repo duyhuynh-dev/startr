@@ -21,3 +21,30 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Safari: disable backdrop-blur to avoid severe lag (Safari composites it poorly) */
+[data-safari="true"] [class*="backdrop-blur"],
+[data-safari="true"] .backdrop-blur-xl,
+[data-safari="true"] .backdrop-blur-sm {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+/* Slightly stronger background when blur is disabled so panels stay readable */
+[data-safari="true"] .bg-white\/5 {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+[data-safari="true"] .bg-white\/10 {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+[data-safari="true"] .bg-slate-900\/95 {
+  background-color: rgba(15, 23, 42, 0.97);
+}
+[data-safari="true"] .bg-black\/40 {
+  background-color: rgba(0, 0, 0, 0.5);
+}
+[data-safari="true"] .bg-black\/50 {
+  background-color: rgba(0, 0, 0, 0.55);
+}
+[data-safari="true"] .bg-\[\#060611\]\/80 {
+  background-color: rgba(6, 6, 17, 0.9);
+}
