@@ -3,15 +3,15 @@
  */
 
 import apiClient, { getErrorMessage } from '../api-client';
-import type { LoginRequest, SignUpRequest, TokenResponse, UserResponse, OAuthAuthorizationResponse } from './types';
+import type { LoginRequest, SignUpRequest, SignUpResponse, TokenResponse, UserResponse, OAuthAuthorizationResponse } from './types';
 
 export const authApi = {
   /**
-   * Sign up a new user
+   * Sign up a new user. Returns user + tokens (no need to call login; Turnstile token is one-time use).
    */
-  async signUp(data: SignUpRequest): Promise<UserResponse> {
+  async signUp(data: SignUpRequest): Promise<SignUpResponse> {
     try {
-      const response = await apiClient.post<UserResponse>('/auth/signup', data);
+      const response = await apiClient.post<SignUpResponse>('/auth/signup', data);
       return response.data;
     } catch (error) {
       throw new Error(getErrorMessage(error));

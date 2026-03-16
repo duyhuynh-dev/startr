@@ -50,8 +50,8 @@ export default function SignupPage() {
       setError('Name and email are required.');
       return;
     }
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters.');
+    if (formData.password.length < 8) {
+      setError('Password must be at least 8 characters.');
       return;
     }
     if (formData.password !== formData.confirmPassword) {

@@ -24,6 +24,14 @@ export interface TokenResponse {
   expires_in: number;
 }
 
+export interface SignUpResponse {
+  user: UserResponse;
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
+}
+
 export interface OAuthAuthorizationResponse {
   authorization_url: string;
   state: string;

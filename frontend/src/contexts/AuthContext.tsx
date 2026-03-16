@@ -75,13 +75,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     fullName: string,
     turnstileToken?: string
   ) => {
-    const userData = await authApi.signUp({ email, password, role, full_name: fullName, turnstile_token: turnstileToken });
-    setUser(userData);
-    
-    const tokenResponse: TokenResponse = await authApi.login({ email, password, turnstile_token: turnstileToken });
+    const data = await authApi.signUp({ email, password, role, full_name: fullName, turnstile_token: turnstileToken });
+    setUser(data.user);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('access_token', tokenResponse.access_token);
-      localStorage.setItem('refresh_token', tokenResponse.refresh_token);
+      localStorage.setItem('access_token', data.access_token);
+      localStorage.setItem('refresh_token', data.refresh_token);
     }
   }, []);
 

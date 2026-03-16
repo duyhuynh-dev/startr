@@ -77,6 +77,15 @@ class UserResponse(BaseModel):
     last_login: Optional[datetime] = None
 
 
+class SignUpResponse(BaseModel):
+    """Response after signup: user info + tokens so client does not need a second Turnstile verification for login."""
+    user: UserResponse
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int
+
+
 class PasswordResetRequest(BaseModel):
     """Request to initiate password reset."""
     email: EmailStr

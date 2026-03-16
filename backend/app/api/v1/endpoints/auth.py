@@ -25,6 +25,7 @@ from app.schemas.auth import (
     PasswordResetRequest,
     RefreshTokenRequest,
     SignUpRequest,
+    SignUpResponse,
     TokenResponse,
     UserResponse,
 )
@@ -93,50 +94,20 @@ def turnstile_mobile_page() -> HTMLResponse:
 
 @router.post(
     "/signup",
-    response_model=UserResponse,
+    response_model=SignUpResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Sign up",
     description="""
-    Create a new user account and profile.
-    
-    This endpoint:
-    1. Creates a new user account with email/password
-    2. Creates an associated profile (investor or founder)
-    3. Returns the user information
-    
-    **Note:** Email verification will be required before full access.
-    
-    **Example Request:**
-    ```json
-    {
-        "email": "user@example.com",
-        "password": "SecurePassword123!",
-        "role": "investor",
-        "full_name": "John Doe"
-    }
-    ```
-    
-    **Example Response:**
-    ```json
-    {
-        "id": "user-id",
-        "email": "user@example.com",
-        "profile_id": "profile-id",
-        "is_active": true,
-        "is_verified": false,
-        "is_admin": false,
-        "created_at": "2025-01-20T12:00:00Z",
-        "last_login": null
-    }
-    ```
+    Create a new user account and profile; returns user + tokens so the client
+    does not need to call login (Turnstile tokens are one-time use).
     """,
 )
 async def signup(
     request: SignUpRequest,
     http_request: Request,
     session: Session = Depends(get_session),
-) -> UserResponse:
-    """Create a new user account."""
+) -> SignUpResponse:
+    """Create a new user account and return user + JWT tokens."""
     client_header = (http_request.headers.get("x-client") or "").lower()
     is_mobile_client = client_header == "mobile"
     if not is_mobile_client:
@@ -150,17 +121,28 @@ async def signup(
             role=request.role,
             full_name=request.full_name,
         )
-        
-        return UserResponse(
-            id=user.id,
-            email=user.email,
-            profile_id=user.profile_id,
-            full_name=request.full_name,
-            is_active=user.is_active,
-            is_verified=user.is_verified,
-            is_admin=user.is_admin,
-            created_at=user.created_at,
-            last_login=user.last_login,
+        user, access_token, refresh_token = auth_service.login(
+            session=session,
+            email=request.email,
+            password=request.password,
+        )
+        expires_in = settings.access_token_expire_minutes * 60
+        return SignUpResponse(
+            user=UserResponse(
+                id=user.id,
+                email=user.email,
+                profile_id=user.profile_id,
+                full_name=request.full_name,
+                is_active=user.is_active,
+                is_verified=user.is_verified,
+                is_admin=user.is_admin,
+                created_at=user.created_at,
+                last_login=user.last_login,
+            ),
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_type="bearer",
+            expires_in=expires_in,
         )
     except ConflictError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
