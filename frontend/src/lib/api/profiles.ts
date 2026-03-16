@@ -29,6 +29,24 @@ export interface ProfileUpdate {
 
 export const profilesApi = {
   /**
+   * Upload a profile photo. Returns the file URL on success, or null if storage is unavailable.
+   */
+  async uploadProfilePhoto(file: File): Promise<string | null> {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await apiClient.post<{ file_url: string }>('/storage/upload/profile-photo', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 30000,
+      });
+      return response.data.file_url;
+    } catch {
+      if (process.env.NODE_ENV === 'development') console.warn('Photo upload failed (storage may be unavailable). Skipping avatar.');
+      return null;
+    }
+  },
+
+  /**
    * Create a new profile
    */
   async createProfile(data: ProfileCreate): Promise<BaseProfile> {

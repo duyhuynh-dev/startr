@@ -1,11 +1,10 @@
 /**
- * Card component with smooth animations
+ * Card component – light theme
  */
 
 'use client';
 
 import { HTMLAttributes, ReactNode } from 'react';
-import { motion } from 'framer-motion';
 
 export interface CardProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
@@ -19,25 +18,14 @@ export function Card({ children, padding = 'md', className = '', ...props }: Car
     md: 'p-6',
     lg: 'p-8',
   };
-  
-  // Extract conflicting drag handlers to avoid type conflicts
-  const { onDrag, onDragStart, onDragEnd, ...restProps } = props as any;
-  
+
   return (
-    <motion.div
-      className={`bg-slate-800 rounded-lg shadow-lg border border-slate-700 ${paddingClasses[padding]} ${className}`}
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: 'easeOut' }}
-      whileHover={{ 
-        boxShadow: '0 10px 25px 0 rgba(245, 158, 11, 0.1)',
-        borderColor: 'rgba(245, 158, 11, 0.3)',
-        transition: { duration: 0.2 }
-      }}
-      {...(restProps as any)}
+    <div
+      className={`bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 ${paddingClasses[padding]} ${className}`}
+      {...props}
     >
       {children}
-    </motion.div>
+    </div>
   );
 }
 
@@ -51,7 +39,7 @@ export function CardHeader({ children, className = '' }: { children: ReactNode; 
 
 export function CardTitle({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <h3 className={`text-xl font-semibold text-slate-100 ${className}`}>
+    <h3 className={`text-xl font-semibold text-white ${className}`}>
       {children}
     </h3>
   );

@@ -1,0 +1,20 @@
+# Startr FastAPI backend – systemd unit
+# Copy to EC2: sudo cp deploy/startr-backend.service /etc/systemd/system/
+# Edit: replace /home/ubuntu with your EC2 user's home (e.g. ec2-user → /home/ec2-user)
+# Then: sudo systemctl daemon-reload && sudo systemctl enable startr-backend && sudo systemctl start startr-backend
+
+[Unit]
+Description=Startr FastAPI Backend
+After=network.target postgresql.service redis-server.service
+
+[Service]
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/startr/backend
+Environment="PATH=/home/ubuntu/startr/backend/.venv/bin"
+ExecStart=/home/ubuntu/startr/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8012
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

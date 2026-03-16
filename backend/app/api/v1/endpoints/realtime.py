@@ -2,17 +2,14 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Query, status, HTTPException
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Query
 from sqlmodel import Session
 
 from app.core.dependencies import get_current_user
-from app.core.exceptions import ValidationError
-from app.db.session import get_session
 from app.models.user import User
 from app.services.realtime import connection_manager
 from app.services.messaging import messaging_service
@@ -100,9 +97,23 @@ async def websocket_endpoint(
     }
     ```
     """
-    # TODO: Verify token and get user profile_id
-    # For now, accept profile_id from path and verify later
-    
+    # Verify token and profile_id (WS auth)
+    if not token:
+        await websocket.close(code=1008)
+        return
+
+    from app.db.session import engine
+    with Session(engine) as session:
+        try:
+            from app.services.auth_service import auth_service
+            authed_user = auth_service.get_current_user(session, token)
+            if not authed_user.profile_id or authed_user.profile_id != profile_id:
+                await websocket.close(code=1008)
+                return
+        except Exception:
+            await websocket.close(code=1008)
+            return
+
     await connection_manager.connect(websocket, profile_id)
     
     try:
@@ -136,12 +147,57 @@ async def websocket_endpoint(
                         logger.error(f"Error sending typing indicator: {e}")
                     
             elif message_type == "ping":
-                # Heartbeat/ping
+                from app.services.presence_service import set_online
+                set_online(profile_id)
                 await websocket.send_json({
                     "type": "pong",
                     "timestamp": datetime.utcnow().isoformat()
                 })
                 
+            elif message_type == "delivered":
+                # Recipient acknowledges delivery of a message
+                msg_id = data.get("message_id")
+                if not msg_id:
+                    continue
+                from app.db.session import engine
+                with Session(engine) as session:
+                    try:
+                        updated = messaging_service.mark_message_delivered(session, msg_id, profile_id)
+                        if updated:
+                            await connection_manager.send_personal_message(
+                                {
+                                    "type": "message_delivered",
+                                    "match_id": updated.match_id,
+                                    "message_id": updated.id,
+                                    "delivered_at": updated.delivered_at.isoformat() if updated.delivered_at else None,
+                                },
+                                updated.sender_id,
+                            )
+                    except Exception as e:
+                        logger.error(f"Error marking delivered: {e}")
+
+            elif message_type == "mark_read":
+                # Recipient acknowledges reading a message
+                msg_id = data.get("message_id")
+                if not msg_id:
+                    continue
+                from app.db.session import engine
+                with Session(engine) as session:
+                    try:
+                        updated = messaging_service.mark_message_read(session, msg_id, profile_id)
+                        if updated:
+                            await connection_manager.send_personal_message(
+                                {
+                                    "type": "message_read",
+                                    "match_id": updated.match_id,
+                                    "message_id": updated.id,
+                                    "read_at": updated.read_at.isoformat() if updated.read_at else None,
+                                },
+                                updated.sender_id,
+                            )
+                    except Exception as e:
+                        logger.error(f"Error marking read: {e}")
+
             elif message_type == "send_message":
                 # Handle sending a message - use REST endpoint instead
                 # WebSocket is primarily for receiving real-time updates

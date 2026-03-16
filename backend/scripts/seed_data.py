@@ -10,7 +10,7 @@ Usage:
 
 Options:
     --clear: Clear all existing data before seeding
-    --count N: Number of profiles to create per role (default: 5)
+    --count N: Number of profiles to create per role (default: 15, total ~30)
 """
 
 from __future__ import annotations
@@ -28,11 +28,13 @@ from sqlmodel import Session
 
 from app.core.config import settings
 from app.db.session import engine
-from app.models.match import Like, Match
+from app.models.match import DailyLimit, Like, Match, Pass, ProfileView
 from app.models.message import Message
+from app.models.notification import Notification
 from app.models.profile import Profile
 from app.models.prompt_template import PromptTemplate
 from app.models.startup_of_month import StartupOfMonth
+from app.models.user import User
 from app.schemas.profile import PromptResponse
 
 # Sample prompt templates
@@ -132,6 +134,158 @@ SAMPLE_INVESTORS = [
             {"prompt_id": "inv_sectors", "content": "Developer tools and security are hot right now - lots of pain points to solve."},
         ],
     },
+    {
+        "full_name": "Priya Sharma",
+        "email": "priya@accel.com",
+        "headline": "Partner at Accel",
+        "location": "London, UK",
+        "firm": "Accel",
+        "check_size_min": 2000000,
+        "check_size_max": 15000000,
+        "focus_sectors": ["SaaS", "Fintech", "Cybersecurity"],
+        "focus_stages": ["Series A", "Series B"],
+        "prompts": [
+            {"prompt_id": "inv_mission", "content": "I back founders building category-defining software in large markets."},
+            {"prompt_id": "inv_thesis", "content": "Unit economics and repeatable GTM matter more than hype in this market."},
+        ],
+    },
+    {
+        "full_name": "Marcus Webb",
+        "email": "marcus@greylock.com",
+        "headline": "Partner at Greylock Partners",
+        "location": "San Francisco, CA",
+        "firm": "Greylock Partners",
+        "check_size_min": 3000000,
+        "check_size_max": 20000000,
+        "focus_sectors": ["Enterprise Software", "AI/ML", "Infrastructure"],
+        "focus_stages": ["Seed", "Series A", "Series B"],
+        "accreditation_note": "Accredited investor",
+        "prompts": [
+            {"prompt_id": "inv_thesis", "content": "I look for technical founders with a clear wedge into a big problem."},
+            {"prompt_id": "inv_sectors", "content": "AI applied to enterprise workflows is the biggest opportunity of the decade."},
+        ],
+    },
+    {
+        "full_name": "Yuki Tanaka",
+        "email": "yuki@softbank.vc",
+        "headline": "Director at SoftBank Vision Fund",
+        "location": "Tokyo, Japan",
+        "firm": "SoftBank Vision Fund",
+        "check_size_min": 10000000,
+        "check_size_max": 100000000,
+        "focus_sectors": ["AI", "Robotics", "Mobility", "Fintech"],
+        "focus_stages": ["Series B", "Series C+", "Growth"],
+        "prompts": [
+            {"prompt_id": "inv_mission", "content": "We back companies that can scale to hundreds of millions of users."},
+            {"prompt_id": "inv_advice", "content": "Think globally from day one and build for multiple markets."},
+        ],
+    },
+    {
+        "full_name": "Nina Patel",
+        "email": "nina@benchmark.com",
+        "headline": "Principal at Benchmark",
+        "location": "San Francisco, CA",
+        "firm": "Benchmark",
+        "check_size_min": 5000000,
+        "check_size_max": 25000000,
+        "focus_sectors": ["Marketplaces", "Consumer", "SaaS"],
+        "focus_stages": ["Series A", "Series B"],
+        "prompts": [
+            {"prompt_id": "inv_thesis", "content": "I focus on companies with strong retention and organic growth."},
+            {"prompt_id": "inv_prefs", "content": "Founder-market fit and speed of execution are what I look for first."},
+        ],
+    },
+    {
+        "full_name": "James O'Brien",
+        "email": "james@indexventures.com",
+        "headline": "Partner at Index Ventures",
+        "location": "London, UK",
+        "firm": "Index Ventures",
+        "check_size_min": 1000000,
+        "check_size_max": 10000000,
+        "focus_sectors": ["DevTools", "Infrastructure", "Security"],
+        "focus_stages": ["Seed", "Series A"],
+        "prompts": [
+            {"prompt_id": "inv_mission", "content": "I love backing developer-first companies that become infrastructure."},
+            {"prompt_id": "inv_sectors", "content": "The best dev tools feel like magic - they disappear into the workflow."},
+        ],
+    },
+    {
+        "full_name": "Sofia Rivera",
+        "email": "sofia@insightpartners.com",
+        "headline": "Vice President at Insight Partners",
+        "location": "New York, NY",
+        "firm": "Insight Partners",
+        "check_size_min": 5000000,
+        "check_size_max": 50000000,
+        "focus_sectors": ["Software", "Healthcare IT", "EdTech"],
+        "focus_stages": ["Series B", "Series C+", "Growth"],
+        "prompts": [
+            {"prompt_id": "inv_thesis", "content": "We help software companies scale through operational support and M&A."},
+            {"prompt_id": "inv_advice", "content": "Build your board and metrics early - they become your compass at scale."},
+        ],
+    },
+    {
+        "full_name": "Omar Hassan",
+        "email": "omar@bessemer.com",
+        "headline": "Partner at Bessemer Venture Partners",
+        "location": "San Francisco, CA",
+        "firm": "Bessemer Venture Partners",
+        "check_size_min": 2000000,
+        "check_size_max": 15000000,
+        "focus_sectors": ["Cloud", "Fintech", "Healthcare"],
+        "focus_stages": ["Series A", "Series B"],
+        "accreditation_note": "Accredited investor",
+        "prompts": [
+            {"prompt_id": "inv_mission", "content": "I invest in companies that make complex systems simple and scalable."},
+            {"prompt_id": "inv_sectors", "content": "Cloud-native and API-first are table stakes for the next generation of software."},
+        ],
+    },
+    {
+        "full_name": "Lily Zhang",
+        "email": "lily@nea.com",
+        "headline": "Partner at NEA",
+        "location": "Menlo Park, CA",
+        "firm": "New Enterprise Associates",
+        "check_size_min": 3000000,
+        "check_size_max": 20000000,
+        "focus_sectors": ["Healthcare", "Biotech", "Enterprise"],
+        "focus_stages": ["Seed", "Series A", "Series B"],
+        "prompts": [
+            {"prompt_id": "inv_thesis", "content": "I look for breakthrough science and strong teams in healthcare."},
+            {"prompt_id": "inv_prefs", "content": "Regulatory strategy and clinical design matter as much as the science."},
+        ],
+    },
+    {
+        "full_name": "Ryan Foster",
+        "email": "ryan@foundersfund.com",
+        "headline": "Partner at Founders Fund",
+        "location": "San Francisco, CA",
+        "firm": "Founders Fund",
+        "check_size_min": 1000000,
+        "check_size_max": 20000000,
+        "focus_sectors": ["Space", "Defense", "AI", "Biotech"],
+        "focus_stages": ["Pre-seed", "Seed", "Series A"],
+        "prompts": [
+            {"prompt_id": "inv_mission", "content": "We back founders building the future others are afraid to fund."},
+            {"prompt_id": "inv_advice", "content": "Contrarian ideas need contrarian capital - we're here for the outliers."},
+        ],
+    },
+    {
+        "full_name": "Anya Kowalski",
+        "email": "anya@generalcatalyst.com",
+        "headline": "Managing Director at General Catalyst",
+        "location": "San Francisco, CA",
+        "firm": "General Catalyst",
+        "check_size_min": 5000000,
+        "check_size_max": 30000000,
+        "focus_sectors": ["Fintech", "Healthcare", "Climate"],
+        "focus_stages": ["Series A", "Series B", "Growth"],
+        "prompts": [
+            {"prompt_id": "inv_thesis", "content": "Responsible innovation in regulated industries is our sweet spot."},
+            {"prompt_id": "inv_sectors", "content": "Climate and health are the two biggest markets of the next 20 years."},
+        ],
+    },
 ]
 
 SAMPLE_FOUNDERS = [
@@ -220,16 +374,191 @@ SAMPLE_FOUNDERS = [
             {"prompt_id": "found_vision", "content": "Our vision is a world where every business tracks and optimizes their environmental impact."},
         ],
     },
+    {
+        "full_name": "Morgan Reed",
+        "email": "morgan@devopsify.io",
+        "headline": "CEO at DevOpsify",
+        "location": "Denver, CO",
+        "company_name": "DevOpsify",
+        "company_url": "https://devopsify.io",
+        "revenue_run_rate": 2400000.0,
+        "team_size": 22,
+        "runway_months": 14,
+        "focus_markets": ["US", "Europe"],
+        "prompts": [
+            {"prompt_id": "found_mission", "content": "We automate CI/CD and infrastructure so engineering teams can ship faster."},
+            {"prompt_id": "found_traction", "content": "400+ teams use us; we're at $200K MRR with 95% retention."},
+            {"prompt_id": "found_team", "content": "Ex-Google and AWS engineers; we've lived the pain we're solving."},
+        ],
+    },
+    {
+        "full_name": "Chris Okonkwo",
+        "email": "chris@paystack.africa",
+        "headline": "Founder at PayStack Africa",
+        "location": "Lagos, Nigeria",
+        "company_name": "PayStack Africa",
+        "company_url": "https://paystack.africa",
+        "revenue_run_rate": 3600000.0,
+        "team_size": 45,
+        "runway_months": 18,
+        "focus_markets": ["West Africa", "East Africa"],
+        "prompts": [
+            {"prompt_id": "found_mission", "content": "We're building the payments backbone for African businesses and creators."},
+            {"prompt_id": "found_traction", "content": "Processing $1B+ annually; 500K+ businesses on the platform."},
+            {"prompt_id": "found_vision", "content": "Every African business should have Stripe-grade payments in one integration."},
+        ],
+    },
+    {
+        "full_name": "Sam Liu",
+        "email": "sam@deepmed.io",
+        "headline": "Co-founder at DeepMed",
+        "location": "Boston, MA",
+        "company_name": "DeepMed",
+        "company_url": "https://deepmed.io",
+        "revenue_run_rate": 1800000.0,
+        "team_size": 28,
+        "runway_months": 16,
+        "focus_markets": ["US", "EU"],
+        "prompts": [
+            {"prompt_id": "found_mission", "content": "We use AI to accelerate drug discovery and reduce clinical trial failure."},
+            {"prompt_id": "found_traction", "content": "Two pharma partnerships; our models have predicted 3 successful Phase II outcomes."},
+            {"prompt_id": "found_prefs", "content": "We want investors with deep biotech and regulatory experience."},
+        ],
+    },
+    {
+        "full_name": "Jordan Blake",
+        "email": "jordan@stackly.dev",
+        "headline": "Founder at Stackly",
+        "location": "San Francisco, CA",
+        "company_name": "Stackly",
+        "company_url": "https://stackly.dev",
+        "revenue_run_rate": 600000.0,
+        "team_size": 6,
+        "runway_months": 22,
+        "focus_markets": ["US"],
+        "prompts": [
+            {"prompt_id": "found_mission", "content": "We're the Figma for backend APIs - design, mock, and ship in one place."},
+            {"prompt_id": "found_traction", "content": "10K+ developers; $50K MRR; YC W24."},
+            {"prompt_id": "found_team", "content": "Previously at Stripe and Vercel; we eat our own dog food."},
+        ],
+    },
+    {
+        "full_name": "Aria Kim",
+        "email": "aria@mindfulhr.com",
+        "headline": "CEO at MindfulHR",
+        "location": "Chicago, IL",
+        "company_name": "MindfulHR",
+        "company_url": "https://mindfulhr.com",
+        "revenue_run_rate": 1500000.0,
+        "team_size": 14,
+        "runway_months": 20,
+        "focus_markets": ["US", "Canada"],
+        "prompts": [
+            {"prompt_id": "found_mission", "content": "We help mid-market companies build inclusive culture with data-driven HR tools."},
+            {"prompt_id": "found_traction", "content": "80+ customers; 40% improvement in retention where we're deployed."},
+            {"prompt_id": "found_vision", "content": "Every employee should have a great manager; we make that measurable."},
+        ],
+    },
+    {
+        "full_name": "Diego Morales",
+        "email": "diego@agriwise.co",
+        "headline": "Founder at AgriWise",
+        "location": "Mexico City, Mexico",
+        "company_name": "AgriWise",
+        "company_url": "https://agriwise.co",
+        "revenue_run_rate": 800000.0,
+        "team_size": 11,
+        "runway_months": 18,
+        "focus_markets": ["Latin America", "US"],
+        "prompts": [
+            {"prompt_id": "found_mission", "content": "We use satellite and IoT data to help farmers optimize yield and reduce waste."},
+            {"prompt_id": "found_traction", "content": "50K+ hectares under management; 15% average yield increase."},
+            {"prompt_id": "found_prefs", "content": "Looking for investors who care about food security and climate resilience."},
+        ],
+    },
+    {
+        "full_name": "Quinn Adams",
+        "email": "quinn@securelayer.io",
+        "headline": "Co-founder at SecureLayer",
+        "location": "Austin, TX",
+        "company_name": "SecureLayer",
+        "company_url": "https://securelayer.io",
+        "revenue_run_rate": 3200000.0,
+        "team_size": 35,
+        "runway_months": 12,
+        "focus_markets": ["US", "UK", "EU"],
+        "prompts": [
+            {"prompt_id": "found_mission", "content": "We provide real-time supply chain security and compliance for enterprises."},
+            {"prompt_id": "found_traction", "content": "Fortune 500 customers; we've prevented $20M+ in fraud and compliance fines."},
+            {"prompt_id": "found_team", "content": "Ex-Palantir and CrowdStrike; we've seen attacks from the inside."},
+        ],
+    },
+    {
+        "full_name": "Zara Khan",
+        "email": "zara@voicefirst.ai",
+        "headline": "CEO at VoiceFirst AI",
+        "location": "London, UK",
+        "company_name": "VoiceFirst AI",
+        "company_url": "https://voicefirst.ai",
+        "revenue_run_rate": 1200000.0,
+        "team_size": 18,
+        "runway_months": 15,
+        "focus_markets": ["UK", "EU", "US"],
+        "prompts": [
+            {"prompt_id": "found_mission", "content": "We build voice AI that actually understands context and accents."},
+            {"prompt_id": "found_traction", "content": "20+ enterprise pilots; 98% accuracy on non-English and accented speech."},
+            {"prompt_id": "found_vision", "content": "Voice should be the primary interface for the next billion users."},
+        ],
+    },
+    {
+        "full_name": "Evan Park",
+        "email": "evan@carbonledger.com",
+        "headline": "Founder at CarbonLedger",
+        "location": "Berlin, Germany",
+        "company_name": "CarbonLedger",
+        "company_url": "https://carbonledger.com",
+        "revenue_run_rate": 1400000.0,
+        "team_size": 12,
+        "runway_months": 20,
+        "focus_markets": ["EU", "US"],
+        "prompts": [
+            {"prompt_id": "found_mission", "content": "We help companies measure and report Scope 3 emissions with audit-grade data."},
+            {"prompt_id": "found_traction", "content": "100+ enterprises; aligned with EU CSRD and SEC climate rules."},
+            {"prompt_id": "found_prefs", "content": "We want investors who understand climate tech and regulatory tailwinds."},
+        ],
+    },
+    {
+        "full_name": "Jordan Reese",
+        "email": "jordan@talentmatch.io",
+        "headline": "Co-founder at TalentMatch",
+        "location": "Toronto, Canada",
+        "company_name": "TalentMatch",
+        "company_url": "https://talentmatch.io",
+        "revenue_run_rate": 900000.0,
+        "team_size": 9,
+        "runway_months": 24,
+        "focus_markets": ["North America"],
+        "prompts": [
+            {"prompt_id": "found_mission", "content": "We use ML to match candidates to roles based on potential, not just keywords."},
+            {"prompt_id": "found_traction", "content": "30+ companies; 2x hire quality and 50% faster time-to-fill in pilots."},
+            {"prompt_id": "found_vision", "content": "Hiring should be about fit and growth, not resume keyword bingo."},
+        ],
+    },
 ]
 
 
 def clear_all_data(session: Session) -> None:
-    """Clear all existing data."""
+    """Clear all existing data (order respects FK: notifications -> messages, then rest)."""
     print("Clearing existing data...")
+    session.exec(delete(Notification))
     session.exec(delete(Message))
     session.exec(delete(Match))
     session.exec(delete(Like))
+    session.exec(delete(Pass))
+    session.exec(delete(ProfileView))
+    session.exec(delete(DailyLimit))
     session.exec(delete(StartupOfMonth))
+    session.exec(delete(User))
     session.exec(delete(Profile))
     session.exec(delete(PromptTemplate))
     session.commit()
@@ -462,7 +791,7 @@ def main() -> None:
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Seed development data")
     parser.add_argument("--clear", action="store_true", help="Clear all existing data before seeding")
-    parser.add_argument("--count", type=int, default=5, help="Number of profiles per role (default: 5)")
+    parser.add_argument("--count", type=int, default=15, help="Number of profiles per role (default: 15, total ~30)")
     args = parser.parse_args()
     
     print("=" * 60)

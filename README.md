@@ -53,6 +53,33 @@
 4. **Due Diligence & Verification:** Implement ETL scripts (Prefect) ingesting public datasets; render diligence sidebar; ship admin review dashboard for manual verification/diligence overrides.
 5. **Polish & Deploy:** Add verification badges, analytics events, observability, and continuous delivery (GitHub Actions ➜ Vercel + Fly.io/Fargate). Run closed beta, gather feedback, iterate on ML weighting.
 
+### Running the app locally (development)
+
+For the **mobile app** to load and work, two things need to be running:
+
+1. **Backend API** (so the app can sign in and fetch data):
+   ```bash
+   cd backend
+   uv run uvicorn app.main:app --reload --port 8012
+   ```
+   Or use your usual backend run command. The mobile app expects the API at `http://localhost:8012/api/v1` by default (set `EXPO_PUBLIC_API_URL` in `mobile/.env` if your backend is elsewhere).
+
+2. **Mobile app (Metro)** (run this in your own terminal, not in a sandbox):
+   ```bash
+   cd mobile
+   npx expo start --ios --clear --localhost
+   ```
+   Wait until Metro shows it’s “waiting” and the first bundle has built (can take 1–2 minutes). Then press `i` to open the iOS simulator if it didn’t open automatically. The `--localhost` option avoids LAN discovery and can prevent “Loading from Metro…” from hanging. On a physical device, use `npx expo start --ios --clear` without `--localhost` so the device can reach Metro on your machine’s IP (same Wi‑Fi), and set `EXPO_PUBLIC_API_URL` to your machine’s IP if needed.
+
+**If the app stays on “Loading from Metro…”:**
+
+- **Start Metro first, then open the app.** In a terminal run `cd mobile && npx expo start --ios --clear`. Wait until you see Metro say it’s “waiting” or “ready” (and the first bundle build may take 1–2 minutes). Only then press `i` to launch the iOS simulator, or reopen the app in the simulator.
+- **Use a clean run.** Stop any existing Expo/Metro process (Ctrl+C), then run `npx expo start --ios --clear` from the `mobile` folder. The `--clear` flag resets the Metro cache so the bundle is rebuilt.
+- **Confirm the Metro terminal has no errors.** If you see red errors in that terminal, fix them (e.g. module not found, syntax error) so the bundle can finish building.
+- **Simulator vs device:** On the iOS simulator, Metro is reached at `localhost`. On a physical device, the device must be on the same Wi‑Fi as your computer; Expo will try to use your machine’s IP. If it still can’t connect, try “tunnel” mode: `npx expo start --tunnel` (requires installing `@expo/ngrok` if prompted).
+
+If the app loads but sign-in or data fails, ensure the backend is running and reachable at the URL above.
+
 ### Backend Status
 
 - `backend/pyproject.toml` defines FastAPI + PyTorch + tooling dependencies.

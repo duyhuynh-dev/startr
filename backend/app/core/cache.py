@@ -22,6 +22,7 @@ PROFILE_CACHE_PREFIX = "profile:"
 FEED_CACHE_PREFIX = "feed:"
 COMPATIBILITY_CACHE_PREFIX = "compat:"
 DILIGENCE_CACHE_PREFIX = "diligence:"
+STABLE_MATCH_PREFIX = "stable_match:"
 LIKES_QUEUE_PREFIX = "likes_queue:"
 PROMPT_TEMPLATE_CACHE_PREFIX = "prompt_template:"
 EMBEDDING_CACHE_PREFIX = "embedding:"
@@ -155,6 +156,35 @@ class CacheService:
     def get_diligence_key(profile_id: str) -> str:
         """Get cache key for diligence summary."""
         return f"{DILIGENCE_CACHE_PREFIX}{profile_id}"
+
+    @staticmethod
+    def get_stable_match_key(profile_id: str) -> str:
+        """Cache key for Gale-Shapley stable match: profile_id -> matched profile_id."""
+        return f"{STABLE_MATCH_PREFIX}{profile_id}"
+
+    @staticmethod
+    def get_stable_match(profile_id: str) -> Optional[str]:
+        """Get stable match profile id for a user. Returns None if not set."""
+        key = CacheService.get_stable_match_key(profile_id)
+        val = CacheService.get(key, default=None)
+        if val is None:
+            return None
+        if isinstance(val, bytes):
+            return val.decode("utf-8")
+        return str(val)
+
+    @staticmethod
+    def set_stable_match(profile_id: str, matched_profile_id: str, ttl: int = CACHE_TTL_LONG) -> bool:
+        """Store stable match for a profile."""
+        key = CacheService.get_stable_match_key(profile_id)
+        return CacheService.set(key, matched_profile_id, ttl=ttl, serialize=False)
+
+    @staticmethod
+    def set_stable_matches(proposer_to_receiver: dict, ttl: int = CACHE_TTL_LONG) -> None:
+        """Store full Gale-Shapley result: proposer_id -> receiver_id. Also stores reverse."""
+        for proposer, receiver in proposer_to_receiver.items():
+            CacheService.set_stable_match(proposer, receiver, ttl)
+            CacheService.set_stable_match(receiver, proposer, ttl)
 
     @staticmethod
     def get_prompt_template_key(template_id: str) -> str:

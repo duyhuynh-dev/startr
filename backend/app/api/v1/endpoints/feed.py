@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session
 
+from app.core.dependencies import get_current_user_profile
 from app.db.session import get_session
+from app.models.profile import Profile
 from app.schemas.feed import DiscoveryFeedResponse, LikesQueueItem, StandoutProfile
 from app.services.discovery import discovery_feed_service
 
@@ -28,9 +30,12 @@ router = APIRouter()
     
     Results are cached for performance and paginated using cursor-based pagination.
     
+    **Authentication:** Bearer token required. Profile is derived from the authenticated user.
+
     **Example Request:**
     ```
-    GET /api/v1/feed/discover?profile_id=user-id&role=founder&limit=20
+    GET /api/v1/feed/discover?role=founder&limit=20
+    Authorization: Bearer <token>
     ```
     
     **Example Response:**
@@ -74,10 +79,11 @@ router = APIRouter()
             }
         },
         400: {"description": "Invalid request parameters"},
+        401: {"description": "Authentication required"},
     },
 )
 def get_discovery_feed(
-    profile_id: str = Query(..., description="ID of the user requesting the feed"),
+    profile: Profile = Depends(get_current_user_profile),
     role: Optional[str] = Query(None, description="Filter by role: investor or founder (auto-detected if omitted)"),
     limit: int = Query(20, ge=1, le=50, description="Number of profiles to return"),
     cursor: Optional[str] = Query(None, description="Pagination cursor from previous response"),
@@ -88,11 +94,10 @@ def get_discovery_feed(
     max_check_size: Optional[int] = Query(None, description="Maximum preferred check size (USD)"),
     session: Session = Depends(get_session),
 ) -> DiscoveryFeedResponse:
-    """Get ranked discovery feed of profiles to potentially match with."""
-    # Custom exceptions from the service layer are handled by FastAPI's exception handlers
+    """Get ranked discovery feed of profiles to potentially match with. Requires authentication."""
     return discovery_feed_service.get_discovery_feed(
         session=session,
-        profile_id=profile_id,
+        profile_id=profile.id,
         role_filter=role,
         limit=limit,
         cursor=cursor,
@@ -116,9 +121,12 @@ def get_discovery_feed(
     
     Results are cached for performance and ML-ranked by compatibility.
     
+    **Authentication:** Bearer token required.
+
     **Example Request:**
     ```
-    GET /api/v1/feed/likes-queue?profile_id=user-id
+    GET /api/v1/feed/likes-queue
+    Authorization: Bearer <token>
     ```
     
     **Example Response:**
@@ -154,14 +162,15 @@ def get_discovery_feed(
                 }
             }
         },
+        401: {"description": "Authentication required"},
     },
 )
 def get_likes_queue(
-    profile_id: str = Query(..., description="ID of the user requesting their likes queue"),
+    profile: Profile = Depends(get_current_user_profile),
     session: Session = Depends(get_session),
 ) -> List[LikesQueueItem]:
-    """Get users who have liked you (likes queue, similar to Hinge 'Likes You')."""
-    return discovery_feed_service.get_likes_queue(session, profile_id)
+    """Get users who have liked you (likes queue). Requires authentication."""
+    return discovery_feed_service.get_likes_queue(session, profile.id)
 
 
 @router.get(
@@ -180,9 +189,12 @@ def get_likes_queue(
     
     Results are cached for performance and ML-ranked.
     
+    **Authentication:** Bearer token required.
+
     **Example Request:**
     ```
-    GET /api/v1/feed/standouts?profile_id=user-id&limit=10
+    GET /api/v1/feed/standouts?limit=10
+    Authorization: Bearer <token>
     ```
     
     **Example Response:**
@@ -219,14 +231,29 @@ def get_likes_queue(
             }
         },
         400: {"description": "Invalid request parameters"},
+        401: {"description": "Authentication required"},
     },
 )
 def get_standouts(
-    profile_id: str = Query(..., description="ID of the user requesting standouts"),
+    profile: Profile = Depends(get_current_user_profile),
     limit: int = Query(10, ge=1, le=20, description="Number of standout profiles to return"),
     session: Session = Depends(get_session),
 ) -> List[StandoutProfile]:
-    """Get standout profiles (most compatible, similar to Hinge Standouts)."""
-    # Custom exceptions from the service layer are handled by FastAPI's exception handlers
-    return discovery_feed_service.get_standouts(session, profile_id, limit)
+    """Get standout profiles (most compatible). Requires authentication."""
+    return discovery_feed_service.get_standouts(session, profile.id, limit)
+
+
+@router.post(
+    "/stable-matching",
+    summary="Compute Gale-Shapley stable matching",
+    description="""
+    Run Gale-Shapley (investors propose to founders) using compatibility scores.
+    Result is cached; the discovery feed will show each user's stable match first.
+    Call this periodically (e.g. daily) or after large profile changes.
+    """,
+    responses={200: {"description": "Stable matching computed and cached"}},
+)
+def compute_stable_matching(session: Session = Depends(get_session)) -> dict:
+    """Compute and cache stable matching for discovery feed ranking."""
+    return discovery_feed_service.compute_stable_matching(session)
 

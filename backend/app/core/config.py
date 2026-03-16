@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     # External API Keys (Optional - for ETL services)
     crunchbase_api_key: Optional[str] = None
     clearbit_api_key: Optional[str] = None
+    
+    # Due Diligence API Keys (Free tier available)
+    apollo_api_key: Optional[str] = None  # Apollo.io - Company enrichment
+    hunter_api_key: Optional[str] = None  # Hunter.io - Email verification
+    openai_api_key: Optional[str] = None  # OpenAI - AI-powered research
+    pdl_api_key: Optional[str] = None  # People Data Labs - Company & people enrichment
 
     # ML Configuration
     embedding_model: str = "all-MiniLM-L6-v2"  # Sentence transformer model
@@ -55,6 +61,10 @@ class Settings(BaseSettings):
     linkedin_client_secret: Optional[str] = None
     google_client_id: Optional[str] = None
     google_client_secret: Optional[str] = None
+    
+    # Cloudflare Turnstile
+    turnstile_site_key: Optional[str] = None
+    turnstile_secret_key: Optional[str] = None
     
     # Email Configuration (Optional - for password reset and verification)
     smtp_host: Optional[str] = None  # e.g., "smtp.gmail.com"
@@ -90,6 +100,10 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in v.split(",") if origin.strip()]
         return v
     
+    # Gale-Shapley stable matching (discovery feed)
+    stable_matching_interval_minutes: int = 15  # Recompute stable matching every N minutes (0 = only at startup)
+    stable_matching_enabled: bool = True  # Set False to disable periodic recompute
+
     # Token expiration
     password_reset_token_expire_hours: int = 24  # Password reset tokens valid for 24 hours
     email_verification_token_expire_hours: int = 48  # Email verification tokens valid for 48 hours

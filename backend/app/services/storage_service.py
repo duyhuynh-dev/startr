@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import json
 import logging
 import mimetypes
 import uuid
@@ -109,7 +110,7 @@ class StorageService:
         self._ensure_bucket_exists()
     
     def _ensure_bucket_exists(self) -> None:
-        """Create bucket if it doesn't exist."""
+        """Create bucket if it doesn't exist, and set public-read policy for MinIO."""
         if not self.client:
             return
         
@@ -118,12 +119,9 @@ class StorageService:
         except ClientError:
             try:
                 if self.storage_type == "minio":
-                    # MinIO - create bucket
                     self.client.create_bucket(Bucket=self.bucket_name)
                 else:
-                    # AWS S3 or S3-compatible - create bucket
                     create_params = {'Bucket': self.bucket_name}
-                    # Only add LocationConstraint for AWS S3 (not for S3-compatible services)
                     if not settings.aws_endpoint_url and settings.aws_region != "us-east-1":
                         create_params['CreateBucketConfiguration'] = {'LocationConstraint': settings.aws_region}
                     self.client.create_bucket(**create_params)
@@ -131,6 +129,30 @@ class StorageService:
             except Exception as e:
                 logger.error(f"Failed to create bucket {self.bucket_name}: {e}")
                 raise StorageServiceError(f"Failed to create bucket: {e}")
+
+        if self.storage_type == "minio":
+            self._set_public_read_policy()
+
+    def _set_public_read_policy(self) -> None:
+        """Allow unauthenticated reads so <img> tags can load stored files."""
+        policy = {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Principal": {"AWS": ["*"]},
+                    "Action": ["s3:GetObject"],
+                    "Resource": [f"arn:aws:s3:::{self.bucket_name}/*"],
+                }
+            ],
+        }
+        try:
+            self.client.put_bucket_policy(
+                Bucket=self.bucket_name, Policy=json.dumps(policy)
+            )
+            logger.info(f"Set public-read policy on bucket: {self.bucket_name}")
+        except Exception as e:
+            logger.warning(f"Could not set public-read policy: {e}")
 
     def is_available(self) -> bool:
         """Check if storage service is available."""

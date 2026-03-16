@@ -35,6 +35,21 @@ class VerificationStatus(BaseModel):
     badges: List[str] = Field(default_factory=list)
 
 
+class FinancialHealth(BaseModel):
+    """Inferred financial health from enrichment (runway, funding velocity)."""
+    estimated_runway_months: Optional[float] = None
+    funding_velocity: Optional[str] = None  # e.g. "Strong", "Moderate"
+
+
+class MarketIntelligence(BaseModel):
+    """Market & Niche Intelligence layer (AI-enriched, verifiable)."""
+    financial_health: Optional[FinancialHealth] = None
+    market_sentiment: Optional[str] = None  # e.g. "Bullish", "Mixed"
+    niche_moat: Optional[str] = None        # One-sentence reasoning trace
+    competitor_gap: List[str] = Field(default_factory=list)
+    sources: List[str] = Field(default_factory=list)  # URLs for verifiability
+
+
 class BaseProfile(BaseModel):
     id: str
     role: Role
@@ -60,8 +75,14 @@ class BaseProfile(BaseModel):
     team_size: Optional[int] = None
     runway_months: Optional[int] = None
     focus_markets: List[str] = Field(default_factory=list)
+    financial_health: Optional[dict] = None
+    market_sentiment: Optional[str] = None
+    niche_moat: Optional[str] = None
+    competitor_gap: List[str] = Field(default_factory=list)
+    intelligence_sources: List[str] = Field(default_factory=list, description="URLs used for enrichment (verifiability)")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+    last_active_at: Optional[str] = Field(None, description="ISO timestamp of last login/activity")
 
     @property
     def profile_completeness(self) -> float:
@@ -142,5 +163,10 @@ class ProfileUpdate(BaseModel):
     team_size: Optional[int] = None
     runway_months: Optional[int] = None
     focus_markets: List[str] | None = None
+    financial_health: Optional[dict] = None
+    market_sentiment: Optional[str] = None
+    niche_moat: Optional[str] = None
+    competitor_gap: Optional[List[str]] = None
+    intelligence_sources: Optional[List[str]] = None
     verification: VerificationStatus | None = None
 

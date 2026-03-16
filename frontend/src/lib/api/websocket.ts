@@ -6,7 +6,31 @@ import type { WebSocketMessage } from '@/hooks/useWebSocket';
 
 import { DEFAULT_WS_BASE_URL, STORAGE_KEYS, WS_PING_INTERVAL_MS, WS_MAX_RECONNECT_DELAY_MS } from '../constants';
 
-const WS_BASE_URL = process.env.NEXT_PUBLIC_WS_URL || DEFAULT_WS_BASE_URL;
+function deriveWsBaseUrlFromApiBaseUrl(apiBaseUrl: string): string {
+  try {
+    const u = new URL(apiBaseUrl);
+    u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
+
+    // If API base ends with /api/v{n}, convert to /api/v{n}/realtime/ws
+    const m = u.pathname.match(/\/api\/v(\d+)\/?$/);
+    if (m?.[1]) {
+      u.pathname = `/api/v${m[1]}/realtime/ws`;
+    } else {
+      // Fallback: append /realtime/ws
+      u.pathname = `${u.pathname.replace(/\/$/, '')}/realtime/ws`;
+    }
+
+    u.search = '';
+    u.hash = '';
+    return u.toString().replace(/\/$/, '');
+  } catch {
+    return DEFAULT_WS_BASE_URL;
+  }
+}
+
+const WS_BASE_URL =
+  process.env.NEXT_PUBLIC_WS_URL ||
+  (process.env.NEXT_PUBLIC_API_URL ? deriveWsBaseUrlFromApiBaseUrl(process.env.NEXT_PUBLIC_API_URL) : DEFAULT_WS_BASE_URL);
 
 export function getWebSocketUrl(profileId: string): string {
   const token = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN) : null;
@@ -22,9 +46,24 @@ export interface NewMessagePayload {
     sender_id: string;
     content: string;
     attachment_url?: string;
+    delivered_at?: string;
     read_at?: string;
     created_at: string;
   };
+}
+
+export interface MessageDeliveredPayload {
+  type: 'message_delivered';
+  match_id: string;
+  message_id: string;
+  delivered_at: string | null;
+}
+
+export interface MessageReadPayload {
+  type: 'message_read';
+  match_id: string;
+  message_id: string;
+  read_at: string | null;
 }
 
 export interface TypingIndicatorPayload {
@@ -46,11 +85,20 @@ export interface OnlineStatusPayload {
   is_online: boolean;
 }
 
+export interface NotificationEventPayload {
+  type: 'notification';
+  kind: string;
+  match_id?: string;
+}
+
 export type MessagingWebSocketMessage =
   | NewMessagePayload
+  | MessageDeliveredPayload
+  | MessageReadPayload
   | TypingIndicatorPayload
   | ConnectedPayload
   | OnlineStatusPayload
+  | NotificationEventPayload
   | { type: 'error'; message: string }
   | { type: 'pong'; timestamp: string };
 
@@ -78,7 +126,7 @@ export class MessagingWebSocketClient {
       this.ws = new WebSocket(url);
 
       this.ws.onopen = () => {
-        console.log('WebSocket connected successfully for profile:', this.profileId);
+        if (process.env.NODE_ENV === 'development') console.log('WebSocket connected successfully for profile:', this.profileId);
         this.reconnectAttempts = 0;
         this.startHeartbeat();
         this.emit('connected', {});
@@ -87,36 +135,41 @@ export class MessagingWebSocketClient {
 
       this.ws.onmessage = (event) => {
         try {
-          console.log('WebSocket received raw message:', event.data);
           const message = JSON.parse(event.data) as MessagingWebSocketMessage;
-          console.log('WebSocket parsed message:', message);
+          if (process.env.NODE_ENV === 'development') console.log('WebSocket parsed message:', message.type);
           this.handleMessage(message);
         } catch (error) {
-          console.error('Failed to parse WebSocket message:', error, event.data);
+          if (process.env.NODE_ENV === 'development') console.error('Failed to parse WebSocket message:', error, event.data);
         }
       };
 
       this.ws.onclose = (event) => {
-        console.log('WebSocket closed:', event.code, event.reason);
+        if (process.env.NODE_ENV === 'development') console.log('WebSocket closed:', event.code, event.reason);
         this.stopHeartbeat();
         this.emit('disconnected', {});
         this.attemptReconnect();
       };
 
-      this.ws.onerror = (error) => {
-        console.error('WebSocket connection error:', error);
-        this.emit('error', { error });
-        reject(error);
+      this.ws.onerror = () => {
+        const msg = 'WebSocket connection failed';
+        if (process.env.NODE_ENV === 'development') console.warn(msg);
+        this.emit('error', { error: msg });
+        reject(new Error(msg));
       };
     });
   }
 
   private handleMessage(message: MessagingWebSocketMessage) {
-    console.log('Handling WebSocket message type:', message.type, message);
+    if (process.env.NODE_ENV === 'development') console.log('Handling WebSocket message type:', message.type);
     switch (message.type) {
       case 'new_message':
-        console.log('Emitting new_message event:', message.message);
         this.emit('new_message', message.message);
+        break;
+      case 'message_delivered':
+        this.emit('message_delivered', message);
+        break;
+      case 'message_read':
+        this.emit('message_read', message);
         break;
       case 'typing':
         this.emit('typing', {
@@ -133,6 +186,9 @@ export class MessagingWebSocketClient {
         break;
       case 'connected':
         this.emit('connected', {});
+        break;
+      case 'notification':
+        this.emit('notification', message);
         break;
       case 'error':
         this.emit('error', { error: message.message });
@@ -160,7 +216,7 @@ export class MessagingWebSocketClient {
 
   private attemptReconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('Max reconnection attempts reached');
+      if (process.env.NODE_ENV === 'development') console.error('Max reconnection attempts reached');
       return;
     }
 
@@ -168,8 +224,8 @@ export class MessagingWebSocketClient {
     const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), WS_MAX_RECONNECT_DELAY_MS); // Exponential backoff, max 30s
 
     this.reconnectTimeout = setTimeout(() => {
-      this.connect().catch((error) => {
-        console.error('Reconnection failed:', error);
+      this.connect().catch((err) => {
+        if (process.env.NODE_ENV === 'development') console.warn(err instanceof Error ? err.message : 'Reconnection failed');
       });
     }, delay);
   }
@@ -183,6 +239,18 @@ export class MessagingWebSocketClient {
           is_typing: isTyping,
         })
       );
+    }
+  }
+
+  sendDelivered(messageId: string) {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: 'delivered', message_id: messageId }));
+    }
+  }
+
+  sendMarkRead(messageId: string) {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: 'mark_read', message_id: messageId }));
     }
   }
 
@@ -202,7 +270,7 @@ export class MessagingWebSocketClient {
       try {
         callback(data);
       } catch (error) {
-        console.error(`Error in ${event} listener:`, error);
+        if (process.env.NODE_ENV === 'development') console.error(`Error in ${event} listener:`, error);
       }
     });
   }

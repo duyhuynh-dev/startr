@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import HTMLResponse
 from sqlmodel import Session
 
 from app.core.config import settings
 from app.core.dependencies import get_current_user
+from app.core.turnstile import verify_turnstile
 from app.core.exceptions import ConflictError, UnauthorizedError, ValidationError
 from app.db.session import get_session
 from app.models.user import User
@@ -30,6 +32,63 @@ from app.services.auth_service import auth_service
 from app.services.oauth_service import oauth_service
 
 router = APIRouter()
+
+
+@router.get(
+    "/turnstile-site-key",
+    summary="Get Turnstile site key",
+    description="Returns the Cloudflare Turnstile site key for client-side widget. Public, no auth required.",
+)
+def get_turnstile_site_key() -> dict:
+    """Return Turnstile site key for frontend widget."""
+    return {"site_key": settings.turnstile_site_key or ""}
+
+
+@router.get(
+    "/turnstile/mobile",
+    summary="Turnstile widget page (mobile WebView)",
+    description="HTML page that renders Turnstile and posts token to React Native WebView.",
+    response_class=HTMLResponse,
+)
+def turnstile_mobile_page() -> HTMLResponse:
+    site_key = settings.turnstile_site_key or ""
+    html = f"""<!doctype html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    <style>
+      html, body {{ height: 100%; margin: 0; background: #0b1120; color: #fff; font-family: -apple-system, system-ui; }}
+      .wrap {{ height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; }}
+      .card {{ width: 100%; max-width: 360px; background: rgba(15,23,42,0.96); border: 1px solid rgba(148,163,184,0.25); border-radius: 18px; padding: 18px; }}
+      .title {{ font-size: 16px; font-weight: 700; color: #fbbf24; margin-bottom: 8px; text-align: center; }}
+      .sub {{ font-size: 12px; color: #cbd5f5; margin-bottom: 12px; text-align: center; }}
+      .widget {{ display:flex; justify-content:center; }}
+      .hint {{ font-size: 12px; color: #9ca3af; margin-top: 12px; text-align: center; }}
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <div class="title">Verify</div>
+        <div class="sub">Please complete the quick check to continue.</div>
+        <div class="widget">
+          <div class="cf-turnstile"
+               data-sitekey="{site_key}"
+               data-theme="dark"
+               data-callback="onToken"></div>
+        </div>
+        <div class="hint">If this doesn’t load, ensure Turnstile site key is configured.</div>
+      </div>
+    </div>
+    <script>
+      function onToken(token) {{
+        try {{ window.ReactNativeWebView.postMessage(token); }} catch (e) {{}}
+      }}
+    </script>
+  </body>
+</html>"""
+    return HTMLResponse(content=html)
 
 
 @router.post(
@@ -72,11 +131,17 @@ router = APIRouter()
     ```
     """,
 )
-def signup(
+async def signup(
     request: SignUpRequest,
+    http_request: Request,
     session: Session = Depends(get_session),
 ) -> UserResponse:
     """Create a new user account."""
+    client_header = (http_request.headers.get("x-client") or "").lower()
+    is_mobile_client = client_header == "mobile"
+    if not is_mobile_client:
+        if not await verify_turnstile(request.turnstile_token, http_request.client.host if http_request.client else None):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Verification failed. Please try again.")
     try:
         user, profile = auth_service.signup(
             session=session,
@@ -90,6 +155,7 @@ def signup(
             id=user.id,
             email=user.email,
             profile_id=user.profile_id,
+            full_name=request.full_name,
             is_active=user.is_active,
             is_verified=user.is_verified,
             is_admin=user.is_admin,
@@ -131,11 +197,25 @@ def signup(
     Use `refresh_token` to get a new access token when it expires.
     """,
 )
-def login(
+async def login(
     request: LoginRequest,
+    http_request: Request,
     session: Session = Depends(get_session),
 ) -> TokenResponse:
     """Login with email and password."""
+    client_header = (http_request.headers.get("x-client") or "").lower()
+    is_mobile_client = client_header == "mobile"
+
+    # For native mobile app we currently skip Turnstile to keep UX clean.
+    if not is_mobile_client:
+        if not await verify_turnstile(
+            request.turnstile_token,
+            http_request.client.host if http_request.client else None,
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Verification failed. Please try again.",
+            )
     try:
         user, access_token, refresh_token = auth_service.login(
             session=session,
@@ -232,12 +312,24 @@ def refresh_token(
 )
 def get_current_user_endpoint(
     user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
 ) -> UserResponse:
     """Get current user information."""
+    full_name = None
+    avatar_url = None
+    if user.profile_id:
+        from app.models.profile import Profile
+        profile = session.get(Profile, user.profile_id)
+        if profile:
+            full_name = profile.full_name
+            avatar_url = profile.avatar_url
+
     return UserResponse(
         id=user.id,
         email=user.email,
         profile_id=user.profile_id,
+        full_name=full_name,
+        avatar_url=avatar_url,
         is_active=user.is_active,
         is_verified=user.is_verified,
         is_admin=user.is_admin,
@@ -273,18 +365,21 @@ def get_current_user_endpoint(
     **Note:** Requires API keys to be configured. See `.env` for OAuth settings.
     """,
 )
-def oauth_authorize(provider: str, request: Request):
+def oauth_authorize(
+    provider: str,
+    request: Request,
+    redirect_uri: Optional[str] = None,
+):
     """Get OAuth authorization URL."""
-    # Firebase doesn't use OAuth authorization flow
     if provider.lower() == "firebase":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Firebase uses ID tokens directly. Use the callback endpoint with an id_token.",
         )
     
-    # Get base URL from request
-    base_url = str(request.base_url).rstrip("/")
-    redirect_uri = f"{base_url}/api/v1/auth/oauth/{provider}/callback"
+    if not redirect_uri:
+        base_url = str(request.base_url).rstrip("/")
+        redirect_uri = f"{base_url}/api/v1/auth/oauth/{provider}/callback"
     
     try:
         if provider.lower() == "linkedin":
@@ -308,15 +403,29 @@ def oauth_authorize(provider: str, request: Request):
         )
 
 
+@router.get(
+    "/oauth/{provider}/callback",
+    response_class=HTMLResponse,
+    summary="OAuth redirect landing (GET)",
+    description="When the OAuth provider (e.g. Google) redirects the user to this URL with ?code=...&state=..., this returns a simple success page. The mobile app intercepts the URL and exchanges the code via POST.",
+)
+def oauth_callback_get(provider: str):
+    """Return a simple HTML page so the WebView shows success instead of 405."""
+    return HTMLResponse(
+        content="""<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign in successful</title></head><body style="font-family:system-ui,sans-serif;background:#0d0e1a;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;"><p style="font-size:18px;">Sign-in successful. You can close this window.</p></body></html>""",
+        status_code=200,
+    )
+
+
 @router.post(
     "/oauth/{provider}/callback",
     response_model=TokenResponse,
     summary="OAuth callback",
     description="""
     Handle OAuth callback and create/login user.
-    
+
     **Providers:** `linkedin`, `google`, `firebase`
-    
+
     **For LinkedIn/Google:**
     ```json
     {
@@ -324,14 +433,14 @@ def oauth_authorize(provider: str, request: Request):
         "state": "random-state-string"
     }
     ```
-    
+
     **For Firebase:**
     ```json
     {
         "id_token": "firebase-id-token-from-client-sdk"
     }
     ```
-    
+
     **Example Response:**
     ```json
     {
@@ -341,7 +450,7 @@ def oauth_authorize(provider: str, request: Request):
         "expires_in": 1800
     }
     ```
-    
+
     **Note:** Requires API keys to be configured. See `.env` for OAuth settings.
     """,
 )
@@ -368,16 +477,17 @@ async def oauth_callback(
                 id_token=request.id_token,
             )
         else:
-            # LinkedIn and Google use OAuth code flow
             if not request.code:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"{provider} requires code in request body",
                 )
             
-            # Get base URL for redirect URI
-            base_url = str(http_request.base_url).rstrip("/")
-            redirect_uri = f"{base_url}/api/v1/auth/oauth/{provider}/callback"
+            if request.redirect_uri:
+                redirect_uri = request.redirect_uri
+            else:
+                base_url = str(http_request.base_url).rstrip("/")
+                redirect_uri = f"{base_url}/api/v1/auth/oauth/{provider}/callback"
             
             if provider_lower == "linkedin":
                 user, access_token, refresh_token = await oauth_service.handle_linkedin_callback(
@@ -414,6 +524,11 @@ async def oauth_callback(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"OAuth error: {e}",
         )
 
 

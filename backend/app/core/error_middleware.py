@@ -4,7 +4,6 @@ import logging
 import traceback
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +22,7 @@ class ErrorLoggingMiddleware(BaseHTTPMiddleware):
             full_traceback = traceback.format_exc()
             
             logger.error(f"\n{'='*60}")
-            logger.error(f"EXCEPTION CAUGHT IN MIDDLEWARE:")
+            logger.error("EXCEPTION CAUGHT IN MIDDLEWARE:")
             logger.error(f"  Type: {error_type}")
             logger.error(f"  Message: {error_msg}")
             logger.error(f"  Path: {request.url.path}")
@@ -33,7 +32,7 @@ class ErrorLoggingMiddleware(BaseHTTPMiddleware):
             
             # Also print to stdout for immediate visibility
             print(f"\n{'='*60}")
-            print(f"EXCEPTION CAUGHT IN MIDDLEWARE:")
+            print("EXCEPTION CAUGHT IN MIDDLEWARE:")
             print(f"  Type: {error_type}")
             print(f"  Message: {error_msg}")
             print(f"  Path: {request.url.path}")

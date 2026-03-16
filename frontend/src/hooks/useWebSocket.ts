@@ -56,7 +56,7 @@ export function useWebSocket({
           const message = JSON.parse(event.data) as WebSocketMessage;
           onMessage?.(message);
         } catch (err) {
-          console.error('Failed to parse WebSocket message:', err);
+          if (process.env.NODE_ENV === 'development') console.error('Failed to parse WebSocket message:', err);
         }
       };
 

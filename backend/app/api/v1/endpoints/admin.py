@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlmodel import Session
 
+from app.core.dependencies import get_admin_user
 from app.db.session import get_session
+from app.models.user import User
 from app.schemas.admin import (
     AdminStatsResponse,
     PendingVerificationProfile,
@@ -18,65 +20,16 @@ from app.services.admin import admin_service
 
 router = APIRouter()
 
-# TODO: Add authentication/authorization middleware to ensure only admins can access these endpoints
-# For now, these endpoints are unprotected
-
 
 @router.get(
     "/verifications/pending",
     response_model=List[PendingVerificationProfile],
     summary="Get pending verifications",
-    description="""
-    Get all profiles awaiting manual verification review.
-    
-    Returns profiles that need admin review, typically:
-    - New profiles that need verification
-    - Profiles with uploaded documents pending review
-    - Flagged profiles requiring attention
-    
-    **Example Request:**
-    ```
-    GET /api/v1/admin/verifications/pending?limit=50
-    ```
-    
-    **Example Response:**
-    ```json
-    [
-        {
-            "id": "profile-id",
-            "full_name": "John Doe",
-            "email": "john@example.com",
-            "role": "investor",
-            "verification": {
-                "soft_verified": False,
-                "manual_reviewed": False,
-                "badges": []
-            },
-            "created_at": "2025-01-20T12:00:00Z"
-        }
-    ]
-    ```
-    """,
-    responses={
-        200: {
-            "description": "Pending verifications returned successfully",
-            "content": {
-                "application/json": {
-                    "example": [
-                        {
-                            "id": "profile-id",
-                            "full_name": "John Doe",
-                            "role": "investor"
-                        }
-                    ]
-                }
-            }
-        },
-    },
 )
 def get_pending_verifications(
     limit: int = Query(50, ge=1, le=100, description="Maximum number of profiles to return"),
     session: Session = Depends(get_session),
+    admin: User = Depends(get_admin_user),
 ) -> List[PendingVerificationProfile]:
     """Get all profiles awaiting manual verification review."""
     return admin_service.get_pending_verifications(session, limit)
@@ -131,6 +84,7 @@ def get_pending_verifications(
 def review_verification(
     request: VerificationReviewRequest,
     session: Session = Depends(get_session),
+    admin: User = Depends(get_admin_user),
 ) -> VerificationReviewResponse:
     """Review and approve/reject a profile's verification."""
     try:
@@ -145,6 +99,7 @@ def get_current_startup_of_month(
     year: Optional[int] = Query(None, ge=2020, le=2100),
     month: Optional[int] = Query(None, ge=1, le=12),
     session: Session = Depends(get_session),
+    admin: User = Depends(get_admin_user),
 ) -> Optional[StartupOfMonthResponse]:
     """Get the currently featured startup of the month."""
     return admin_service.get_current_startup_of_month(session, year, month)
@@ -154,6 +109,7 @@ def get_current_startup_of_month(
 def feature_startup_of_month(
     request: StartupOfMonthCreate,
     session: Session = Depends(get_session),
+    admin: User = Depends(get_admin_user),
 ) -> StartupOfMonthResponse:
     """Feature a startup as startup of the month."""
     try:
@@ -168,6 +124,7 @@ def list_startups_of_month(
     year: Optional[int] = Query(None, ge=2020, le=2100, description="Filter by year"),
     limit: int = Query(12, ge=1, le=100, description="Maximum number of entries to return"),
     session: Session = Depends(get_session),
+    admin: User = Depends(get_admin_user),
 ) -> List[StartupOfMonthResponse]:
     """List all featured startups of the month, optionally filtered by year."""
     return admin_service.list_startups_of_month(session, year, limit)
@@ -215,7 +172,7 @@ def list_startups_of_month(
         },
     },
 )
-def get_admin_stats(session: Session = Depends(get_session)) -> AdminStatsResponse:
+def get_admin_stats(session: Session = Depends(get_session), admin: User = Depends(get_admin_user)) -> AdminStatsResponse:
     """Get admin dashboard statistics."""
     return admin_service.get_admin_stats(session)
 

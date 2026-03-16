@@ -15,12 +15,14 @@ class SignUpRequest(BaseModel):
     password: str = Field(..., min_length=8, description="Password must be at least 8 characters")
     role: str = Field(..., pattern="^(investor|founder)$", description="User role: investor or founder")
     full_name: str = Field(..., min_length=1, max_length=200)
+    turnstile_token: Optional[str] = None
 
 
 class LoginRequest(BaseModel):
     """Request to login with email and password."""
     email: EmailStr
     password: str
+    turnstile_token: Optional[str] = None
 
 
 class TokenResponse(BaseModel):
@@ -58,6 +60,7 @@ class OAuthCallbackRequest(BaseModel):
     code: Optional[str] = None  # For LinkedIn/Google
     id_token: Optional[str] = None  # For Firebase
     state: Optional[str] = None  # OAuth state parameter for CSRF protection
+    redirect_uri: Optional[str] = None  # SPA-provided redirect URI (must match authorize step)
 
 
 class UserResponse(BaseModel):
@@ -65,6 +68,8 @@ class UserResponse(BaseModel):
     id: str
     email: str
     profile_id: Optional[str] = None
+    full_name: Optional[str] = None
+    avatar_url: Optional[str] = None
     is_active: bool
     is_verified: bool
     is_admin: bool
@@ -93,7 +98,47 @@ class EmailVerificationConfirm(BaseModel):
     token: str
 
 
+class EmailOTPRequest(BaseModel):
+    """Request to send OTP code for email verification."""
+    email: EmailStr
+
+
+class EmailOTPVerify(BaseModel):
+    """Request to verify email with OTP code."""
+    email: EmailStr
+    code: str = Field(..., min_length=6, max_length=6, pattern="^[0-9]{6}$", description="6-digit verification code")
+
+
+class VerificationStatusResponse(BaseModel):
+    """Response with verification status details."""
+    profile_id: str
+    level: int
+    level_name: str
+    badges: list[str]
+    email_verified: bool
+    domain_verified: bool
+    oauth_verified: bool
+    manually_reviewed: bool
+    accreditation_attested: bool
+
+
+class DomainVerificationResponse(BaseModel):
+    """Response for domain verification request."""
+    verified: bool
+    message: str
+    domain: str
+    user_email_domain: Optional[str] = None
+    instructions: Optional[list[str]] = None
+
+
 class AuthMessageResponse(BaseModel):
     """Simple message response for auth endpoints."""
     message: str
+
+
+class OTPResponse(BaseModel):
+    """Response for OTP request."""
+    success: bool
+    message: str
+    expires_in: Optional[int] = None
 

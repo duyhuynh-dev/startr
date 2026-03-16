@@ -1,6 +1,5 @@
 """CORS utility functions for consistent header generation."""
 
-import fnmatch
 import re
 from typing import Dict, List, Optional
 
@@ -80,14 +79,16 @@ def get_cors_headers(request: Request, allowed_origins: Optional[List[str]] = No
     """
     headers: Dict[str, str] = {}
     origin = request.headers.get("origin")
-    
     if not origin:
         return headers
-    
+    # Always allow localhost in development so error responses (e.g. 500) still get CORS
+    if origin in ("http://localhost:3000", "http://127.0.0.1:3000"):
+        headers["Access-Control-Allow-Origin"] = origin
+        headers["Access-Control-Allow-Credentials"] = "true"
+        return headers
     # Check if origin is allowed
     if is_origin_allowed(origin, allowed_origins):
         headers["Access-Control-Allow-Origin"] = origin
         headers["Access-Control-Allow-Credentials"] = "true"
-    
     return headers
 

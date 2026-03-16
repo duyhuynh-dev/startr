@@ -3,7 +3,7 @@
  */
 
 import apiClient, { getErrorMessage } from '../api-client';
-import type { LoginRequest, SignUpRequest, TokenResponse, UserResponse } from './types';
+import type { LoginRequest, SignUpRequest, TokenResponse, UserResponse, OAuthAuthorizationResponse } from './types';
 
 export const authApi = {
   /**
@@ -72,6 +72,70 @@ export const authApi = {
   isAuthenticated(): boolean {
     if (typeof window === 'undefined') return false;
     return !!localStorage.getItem('access_token');
+  },
+
+  /**
+   * Get Turnstile site key for the widget
+   */
+  async getTurnstileSiteKey(): Promise<string> {
+    try {
+      const response = await apiClient.get<{ site_key: string }>('/auth/turnstile-site-key');
+      return response.data.site_key || '';
+    } catch {
+      return '';
+    }
+  },
+
+  /**
+   * Request a password reset email
+   */
+  async requestPasswordReset(email: string): Promise<void> {
+    try {
+      await apiClient.post('/auth/password-reset/request', { email });
+    } catch (error) {
+      throw new Error(getErrorMessage(error));
+    }
+  },
+
+  /**
+   * Confirm password reset with token and new password
+   */
+  async confirmPasswordReset(token: string, new_password: string): Promise<void> {
+    try {
+      await apiClient.post('/auth/password-reset/confirm', { token, new_password });
+    } catch (error) {
+      throw new Error(getErrorMessage(error));
+    }
+  },
+
+  /**
+   * Get Google OAuth authorization URL from the backend
+   */
+  async getGoogleAuthUrl(redirectUri: string): Promise<OAuthAuthorizationResponse> {
+    try {
+      const response = await apiClient.get<OAuthAuthorizationResponse>(
+        '/auth/oauth/google/authorize',
+        { params: { redirect_uri: redirectUri } },
+      );
+      return response.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error));
+    }
+  },
+
+  /**
+   * Exchange Google OAuth code for tokens
+   */
+  async googleCallback(code: string, redirectUri: string): Promise<TokenResponse> {
+    try {
+      const response = await apiClient.post<TokenResponse>(
+        '/auth/oauth/google/callback',
+        { code, redirect_uri: redirectUri },
+      );
+      return response.data;
+    } catch (error) {
+      throw new Error(getErrorMessage(error));
+    }
   },
 };
 

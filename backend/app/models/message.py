@@ -14,6 +14,7 @@ class Message(SQLModel, table=True):
     sender_id: str = Field(foreign_key="profiles.id", index=True)
     content: str
     attachment_url: str | None = None
+    delivered_at: datetime | None = None
     read_at: datetime | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 

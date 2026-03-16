@@ -19,7 +19,7 @@ class User(SQLModel, table=True):
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True, index=True)
     email: str = Field(unique=True, index=True)
-    password_hash: str  # Hashed password (never store plaintext)
+    password_hash: Optional[str] = None  # None for OAuth-only users
     
     # OAuth providers
     firebase_uid: Optional[str] = Field(default=None, index=True)  # Firebase Auth UID

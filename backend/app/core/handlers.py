@@ -49,7 +49,6 @@ async def validation_exception_handler(
         field = " -> ".join(str(loc) for loc in error.get("loc", []))
         message = error.get("msg", "Validation error")
         error_type = error.get("type", "validation_error")
-        
         errors.append(
             ErrorDetail(
                 field=field if field != "body" else None,
@@ -57,12 +56,11 @@ async def validation_exception_handler(
                 code=error_type,
             )
         )
-
+    headers = get_cors_headers(request)
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content=ValidationErrorResponse(
-            details=errors,
-        ).model_dump(),
+        content=ValidationErrorResponse(details=errors).model_dump(),
+        headers=headers,
     )
 
 
@@ -86,8 +84,6 @@ async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse
 async def integrity_error_handler(request: Request, exc: IntegrityError) -> JSONResponse:
     """Handle database integrity errors (duplicate keys, foreign key violations, etc.)."""
     error_msg = str(exc.orig) if exc.orig else "Database integrity error"
-    
-    # Parse common errors
     if "unique" in error_msg.lower() or "duplicate" in error_msg.lower():
         message = "Resource already exists"
         status_code = status.HTTP_409_CONFLICT
@@ -100,7 +96,7 @@ async def integrity_error_handler(request: Request, exc: IntegrityError) -> JSON
     else:
         message = "Database constraint violation"
         status_code = status.HTTP_400_BAD_REQUEST
-
+    headers = get_cors_headers(request)
     return JSONResponse(
         status_code=status_code,
         content=ErrorResponse(
@@ -109,11 +105,13 @@ async def integrity_error_handler(request: Request, exc: IntegrityError) -> JSON
             details=[ErrorDetail(message=error_msg, code="integrity_error")],
             timestamp=datetime.utcnow().isoformat(),
         ).model_dump(),
+        headers=headers,
     )
 
 
 async def sqlalchemy_error_handler(request: Request, exc: SQLAlchemyError) -> JSONResponse:
     """Handle general SQLAlchemy errors."""
+    headers = get_cors_headers(request)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content=ErrorResponse(
@@ -122,11 +120,14 @@ async def sqlalchemy_error_handler(request: Request, exc: SQLAlchemyError) -> JS
             details=[ErrorDetail(message=str(exc), code="database_error")],
             timestamp=datetime.utcnow().isoformat(),
         ).model_dump(),
+        headers=headers,
     )
 
 
 async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
     """Handle rate limit exceeded errors."""
+    headers = get_cors_headers(request)
+    headers["Retry-After"] = str(exc.retry_after) if hasattr(exc, "retry_after") else "60"
     return JSONResponse(
         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
         content=ErrorResponse(
@@ -140,7 +141,7 @@ async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) 
             ],
             timestamp=datetime.utcnow().isoformat(),
         ).model_dump(),
-        headers={"Retry-After": str(exc.retry_after) if hasattr(exc, "retry_after") else "60"},
+        headers=headers,
     )
 
 

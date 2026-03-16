@@ -22,7 +22,7 @@ export const messagingApi = {
   /**
    * Send a message
    */
-  async sendMessage(payload: MessageCreate & { sender_id: string }): Promise<Message> {
+  async sendMessage(payload: MessageCreate): Promise<Message> {
     try {
       const response = await apiClient.post<Message>('/messages', payload);
       return response.data;
@@ -34,14 +34,10 @@ export const messagingApi = {
   /**
    * Get messages in a thread
    */
-  async getMessages(
-    matchId: string,
-    profileId: string,
-    limit: number = 50
-  ): Promise<Message[]> {
+  async getMessages(matchId: string, limit: number = 50): Promise<Message[]> {
     try {
       const response = await apiClient.get<Message[]>(`/messages/${matchId}`, {
-        params: { profile_id: profileId, limit },
+        params: { limit },
       });
       return response.data;
     } catch (error) {
@@ -52,11 +48,9 @@ export const messagingApi = {
   /**
    * Get conversation threads (list of matches with previews)
    */
-  async getConversations(profileId: string): Promise<ConversationThread[]> {
+  async getConversations(): Promise<ConversationThread[]> {
     try {
-      const response = await apiClient.get<ConversationThread[]>('/messages', {
-        params: { profile_id: profileId },
-      });
+      const response = await apiClient.get<ConversationThread[]>('/messages');
       return response.data;
     } catch (error) {
       throw new Error(getErrorMessage(error));

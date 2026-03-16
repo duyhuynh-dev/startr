@@ -3,10 +3,10 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-#hi
 class MessageCreate(BaseModel):
+    """sender_id is ignored; set from auth token."""
     match_id: str
-    sender_id: str
+    sender_id: Optional[str] = None
     content: str = Field(..., max_length=5000)
     attachment_url: Optional[str] = None
 
@@ -17,6 +17,7 @@ class MessageResponse(BaseModel):
     sender_id: str
     content: str
     attachment_url: Optional[str] = None
+    delivered_at: Optional[datetime] = None
     read_at: Optional[datetime] = None
     created_at: datetime
 

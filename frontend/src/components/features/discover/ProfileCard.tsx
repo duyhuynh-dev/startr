@@ -1,146 +1,311 @@
 /**
- * Profile Card Component - Display profile in discovery feed
- * Enhanced with smooth animations and transitions
+ * Profile Card – Clean light theme for Contra-style discover feed
  */
 
 'use client';
 
 import { motion } from 'framer-motion';
-import { Button, Card, CardContent } from '@/components/ui';
+import Link from 'next/link';
 import type { ProfileCard as ProfileCardType } from '@/lib/api/feed';
-import { cardHover } from '@/lib/animations';
+
+/** Holistic venture fit: financials + market position + profile strength + balance (no single-metric thresholds). */
+function getHolisticFitScore(profile: ProfileCardType): number {
+  const teamSize = Math.max(1, profile.team_size ?? 1);
+  const rev = profile.revenue_run_rate ?? 0;
+  const runwayMonths = profile.runway_months ?? 0;
+  const fundingPerHead = (rev * 12) / teamSize;
+
+  // 1. Financial sustainability (smooth continuum, not a single cutoff)
+  const revNorm = Math.min(1, fundingPerHead / 1_500_000);
+  const runwayNorm = Math.min(1, runwayMonths / 24);
+  const financialScore = 0.6 * revNorm + 0.4 * runwayNorm;
+
+  // 2. Market & positioning (enrichment + narrative strength when available)
+  let marketScore = 0.5;
+  const hasEnrichment =
+    !!profile.market_sentiment || !!profile.niche_moat || (profile.competitor_gap?.length ?? 0) > 0;
+  if (hasEnrichment) {
+    const sentimentPositive = /positive|strong|bullish|favorable/i.test(profile.market_sentiment ?? '') ? 1 : 0.5;
+    const hasMoat = (profile.niche_moat?.length ?? 0) > 20 ? 1 : 0.5;
+    const hasGap = (profile.competitor_gap?.length ?? 0) > 0 ? 1 : 0;
+    marketScore = Math.min(1, 0.4 * sentimentPositive + 0.4 * hasMoat + 0.2 * hasGap);
+  }
+
+  // 3. Profile strength (completeness and diversity of signals, not raw size)
+  const promptsWithContent = (profile.prompts ?? []).filter((p) => p?.content?.trim()).length;
+  const promptScore = Math.min(1, promptsWithContent / 3) * 0.4;
+  const hasMarkets = (profile.focus_markets?.length ?? 0) > 0 ? 0.2 : 0;
+  const hasRevenue = (profile.revenue_run_rate ?? 0) > 0 ? 0.2 : 0;
+  const hasRunway = (profile.runway_months ?? 0) > 0 ? 0.2 : 0;
+  const profileStrengthScore = promptScore + hasMarkets + hasRevenue + hasRunway;
+
+  // 4. Balance (runway sustainability and team size band — holistic, not “more $ = better”)
+  const runwayOk = Math.min(1, runwayMonths / 18);
+  const teamReasonable = teamSize >= 2 && teamSize <= 50 ? 1 : teamSize < 2 ? 0.5 : 0.8;
+  const balanceScore = runwayOk * 0.6 + teamReasonable * 0.4;
+
+  const composite =
+    0.3 * financialScore + 0.3 * marketScore + 0.2 * profileStrengthScore + 0.2 * balanceScore;
+  return Math.min(1, composite);
+}
+
+function VentureFitBar({ profile }: { profile: ProfileCardType }) {
+  if (profile.role !== 'founder') return null;
+  const composite = getHolisticFitScore(profile);
+  const pct = Math.min(100, Math.round(composite * 100));
+  const label =
+    composite >= 0.6 ? 'Strong fit' : composite >= 0.35 ? 'Moderate fit' : 'Building traction';
+  const barColor =
+    composite >= 0.6 ? 'bg-emerald-500' : composite >= 0.35 ? 'bg-amber-500' : 'bg-white/30';
+  const hasEnrichment =
+    !!profile.market_sentiment || !!profile.niche_moat || (profile.competitor_gap?.length ?? 0) > 0;
+  return (
+    <div className="col-span-2 bg-white/3 rounded-xl px-4 py-3">
+      <p className="text-[10px] uppercase tracking-wider text-white/30 font-medium mb-1.5" title="Financials, market position, profile strength, and balance">
+        Venture fit
+      </p>
+      <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all ${barColor}`}
+          style={{ width: `${Math.max(10, pct)}%` }}
+        />
+      </div>
+      <p className="text-xs text-white/50 mt-1">{label}</p>
+      {!hasEnrichment && (
+        <p className="text-[10px] text-white/30 mt-0.5">Based on profile data only</p>
+      )}
+    </div>
+  );
+}
+
+function formatLastActive(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return d.toLocaleDateString();
+}
 
 interface ProfileCardProps {
   profile: ProfileCardType;
   onLike: (likeType?: 'standard' | 'rose', note?: string, promptId?: string) => void;
   onPass: () => void;
+  onViewDiligence?: () => void;
   dailyLimits?: {
     standard_likes_remaining: number;
     roses_remaining: number;
   } | null;
 }
 
-export function ProfileCard({ profile, onLike, onPass, dailyLimits }: ProfileCardProps) {
+export function ProfileCard({ profile, onLike, onPass, onViewDiligence, dailyLimits }: ProfileCardProps) {
   return (
     <motion.div
-      variants={cardHover}
-      initial="rest"
-      whileHover="hover"
-      className="w-full mb-24"
+      whileHover={{ y: -2, boxShadow: '0 8px 30px rgba(0,0,0,0.08)' }}
+      transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+      className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden"
     >
-      <Card className="mb-0">
-          <CardContent className="p-6">
-            {/* Header */}
-            <motion.div 
-              className="mb-6"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1, duration: 0.3 }}
-            >
-              <h2 className="text-2xl font-bold text-slate-100 mb-2">{profile.full_name}</h2>
-              {profile.headline && (
-                <p className="text-lg text-slate-100">{profile.headline}</p>
+      <div className="p-6">
+        {/* Header */}
+        <div className="flex items-start justify-between mb-5">
+          <div className="flex items-center gap-4">
+            <div className="relative shrink-0">
+              {profile.avatar_url ? (
+                <img
+                  src={profile.avatar_url}
+                  alt=""
+                  className="w-14 h-14 rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center text-lg font-semibold text-white/70">
+                  {profile.full_name?.charAt(0)?.toUpperCase() || '?'}
+                </div>
               )}
-              {profile.location && (
-                <p className="text-sm text-slate-100 mt-1">📍 {profile.location}</p>
+              {profile.is_online && (
+                <span
+                  className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-[#060611]"
+                  title="Online now"
+                />
               )}
-            </motion.div>
-
-            {/* Compatibility Score - Only show if > 0 */}
-            {profile.compatibility_score != null && profile.compatibility_score > 0 && (
-              <motion.div
-                className="mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.2, duration: 0.3 }}
-              >
-                <p className="text-sm text-slate-100">
-                  Compatibility: <span className="font-semibold">{Math.round(profile.compatibility_score)}%</span>
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-white">{profile.full_name ?? 'Someone'}</h2>
+              {(profile.is_online || profile.last_active_at) && (
+                <p className="text-xs text-white/40 mt-0.5">
+                  {profile.is_online ? 'Online now' : profile.last_active_at ? `Active ${formatLastActive(profile.last_active_at)}` : null}
                 </p>
-              </motion.div>
-            )}
+              )}
+              {profile.headline && (
+                <p className="text-sm text-white/40">{profile.headline}</p>
+              )}
+              <div className="flex items-center gap-3 mt-1">
+                {profile.location && (
+                  <span className="text-xs text-white/30">{profile.location}</span>
+                )}
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-white/10 text-white/50">
+                  {profile.role}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
 
-            {/* Prompts */}
-            {profile.prompts && profile.prompts.length > 0 && (
-              <motion.div
-                className="mb-6 space-y-4"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.3, duration: 0.3 }}
-              >
-                {profile.prompts.map((prompt, idx) => (
-                  <motion.div
-                    key={prompt.prompt_id || idx}
-                    className="border-l-4 border-blue-500 pl-4"
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.3 + idx * 0.1, duration: 0.3 }}
-                  >
-                    <p className="text-sm text-slate-100">{prompt.content}</p>
-                  </motion.div>
-                ))}
-              </motion.div>
-            )}
+        {/* Prompts */}
+        {profile.prompts && profile.prompts.length > 0 && (
+          <div className="mb-5 space-y-3">
+            {profile.prompts.map((prompt, idx) => {
+              const text = (prompt.content ?? '').trim();
+              if (!text) return null;
+              return (
+                <div key={prompt.prompt_id || idx} className="bg-white/3 rounded-xl p-4">
+                  <p className="text-sm text-white/70 leading-relaxed">{text}</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
-            {/* Role-specific info */}
-            <motion.div
-              className="mb-6 space-y-2"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4, duration: 0.3 }}
+        {/* Role-specific details */}
+        <div className="space-y-0">
+          {profile.role === 'investor' && (
+            <div className="grid grid-cols-2 gap-3">
+              {profile.firm && (
+                <div className="bg-white/3 rounded-xl px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-wider text-white/30 font-medium mb-0.5">Firm</p>
+                  <p className="text-sm font-medium text-white">{profile.firm}</p>
+                </div>
+              )}
+              {profile.check_size_min && profile.check_size_max && (
+                <div className="bg-white/3 rounded-xl px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-wider text-white/30 font-medium mb-0.5">Check size</p>
+                  <p className="text-sm font-medium text-white">
+                    ${(profile.check_size_min / 1000).toFixed(0)}k – ${(profile.check_size_max / 1000).toFixed(0)}k
+                  </p>
+                </div>
+              )}
+              {profile.focus_sectors && profile.focus_sectors.length > 0 && (
+                <div className="bg-white/3 rounded-xl px-4 py-3 col-span-2">
+                  <p className="text-[10px] uppercase tracking-wider text-white/30 font-medium mb-1.5">Sectors</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {profile.focus_sectors.map((s) => (
+                      <span key={s} className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-xs text-white/60">{s}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {profile.focus_stages && profile.focus_stages.length > 0 && (
+                <div className="bg-white/3 rounded-xl px-4 py-3 col-span-2">
+                  <p className="text-[10px] uppercase tracking-wider text-white/30 font-medium mb-1.5">Stages</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {profile.focus_stages.map((s) => (
+                      <span key={s} className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-xs text-white/60">{s}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {profile.role === 'founder' && (
+            <div className="grid grid-cols-2 gap-3">
+              {profile.company_name && (
+                <div className="bg-white/3 rounded-xl px-4 py-3 flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-white/30 font-medium mb-0.5">Company</p>
+                    <p className="text-sm font-medium text-white">{profile.company_name}</p>
+                  </div>
+                  {profile.niche_moat && (
+                    <div className="group relative shrink-0">
+                      <span
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/20 text-amber-400"
+                        title="Market Intelligence"
+                        aria-label="AI-generated market insight"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+                      </span>
+                      <div className="absolute right-0 top-full z-10 mt-1 hidden w-64 rounded-lg border border-white/10 bg-[#0d0e1a] p-3 text-xs text-white/80 shadow-xl group-hover:block">
+                        <p className="text-[10px] uppercase tracking-wider text-amber-400/80 mb-1">Market Intelligence</p>
+                        <p>{profile.niche_moat}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {profile.revenue_run_rate != null && profile.revenue_run_rate > 0 && (
+                <div className="bg-white/3 rounded-xl px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-wider text-white/30 font-medium mb-0.5">MRR</p>
+                  <p className="text-sm font-medium text-white">${profile.revenue_run_rate.toLocaleString()}</p>
+                </div>
+              )}
+              {profile.team_size != null && profile.team_size > 0 && (
+                <div className="bg-white/3 rounded-xl px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-wider text-white/30 font-medium mb-0.5">Team</p>
+                  <p className="text-sm font-medium text-white">{profile.team_size} people</p>
+                </div>
+              )}
+              {profile.runway_months != null && profile.runway_months > 0 && (
+                <div className="bg-white/3 rounded-xl px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-wider text-white/30 font-medium mb-0.5">Runway</p>
+                  <p className="text-sm font-medium text-white">{profile.runway_months} months</p>
+                </div>
+              )}
+              <VentureFitBar profile={profile} />
+            </div>
+          )}
+        </div>
+
+        {/* View profile & Due Diligence */}
+        <div className="mt-4 flex items-center gap-4">
+          <Link
+            href={`/profile/${profile.id}`}
+            className="flex items-center gap-2 text-sm font-medium text-white/40 hover:text-white/70 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            View full profile
+          </Link>
+          {onViewDiligence && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onViewDiligence(); }}
+              className="flex items-center gap-2 text-sm font-medium text-white/40 hover:text-white/70 transition-colors"
             >
-              {profile.role === 'investor' && (
-                <>
-                  {profile.firm && (
-                    <p className="text-sm text-slate-100">
-                      <span className="font-medium">Firm:</span> {profile.firm}
-                    </p>
-                  )}
-                  {profile.check_size_min && profile.check_size_max && (
-                    <p className="text-sm text-slate-100">
-                      <span className="font-medium">Check Size:</span> ${profile.check_size_min.toLocaleString()} - ${profile.check_size_max.toLocaleString()}
-                    </p>
-                  )}
-                  {profile.focus_sectors && profile.focus_sectors.length > 0 && (
-                    <p className="text-sm text-slate-100">
-                      <span className="font-medium">Sectors:</span> {profile.focus_sectors.join(', ')}
-                    </p>
-                  )}
-                  {profile.focus_stages && profile.focus_stages.length > 0 && (
-                    <p className="text-sm text-slate-100">
-                      <span className="font-medium">Stages:</span> {profile.focus_stages.join(', ')}
-                    </p>
-                  )}
-                </>
-              )}
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              View Due Diligence
+            </button>
+          )}
+        </div>
+      </div>
 
-              {profile.role === 'founder' && (
-                <>
-                  {profile.company_name && (
-                    <p className="text-sm text-slate-100">
-                      <span className="font-medium">Company:</span> {profile.company_name}
-                    </p>
-                  )}
-                  {profile.revenue_run_rate != null && profile.revenue_run_rate > 0 && (
-                    <p className="text-sm text-slate-100">
-                      <span className="font-medium">Monthly Revenue:</span> ${profile.revenue_run_rate.toLocaleString()}
-                    </p>
-                  )}
-                  {profile.team_size != null && profile.team_size > 0 && (
-                    <p className="text-sm text-slate-100">
-                      <span className="font-medium">Team Size:</span> {profile.team_size} people
-                    </p>
-                  )}
-                  {profile.runway_months != null && profile.runway_months > 0 && (
-                    <p className="text-sm text-slate-100">
-                      <span className="font-medium">Runway:</span> {profile.runway_months} months
-                    </p>
-                  )}
-                </>
-              )}
-            </motion.div>
-          </CardContent>
-        </Card>
-      </motion.div>
+      {/* Action bar at bottom of card */}
+      <div className="border-t border-white/5 px-6 py-4 flex gap-3">
+        <motion.button
+          type="button"
+          onClick={onPass}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.97 }}
+          className="flex-1 py-2.5 rounded-xl border border-white/10 text-sm font-medium text-white/50 hover:bg-white/5 transition-colors"
+        >
+          Pass
+        </motion.button>
+        <motion.button
+          type="button"
+          onClick={() => onLike('standard')}
+          disabled={(dailyLimits?.standard_likes_remaining ?? 1) <= 0}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.97 }}
+          className="flex-1 py-2.5 rounded-xl bg-linear-to-r from-amber-400 to-yellow-500 text-[#060611] text-sm font-semibold hover:from-amber-500 hover:to-yellow-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          Interested
+        </motion.button>
+      </div>
+    </motion.div>
   );
 }

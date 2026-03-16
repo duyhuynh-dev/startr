@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Dict, Set
@@ -12,6 +13,7 @@ from sqlmodel import Session
 
 from app.models.message import Message
 from app.models.match import Match
+from app.services.presence_service import set_online, set_offline
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +38,7 @@ class ConnectionManager:
         
         self.active_connections[profile_id].add(websocket)
         self.connection_to_profile[websocket] = profile_id
+        set_online(profile_id)
         
         logger.info(f"WebSocket connected for profile {profile_id}. Total connections: {len(self.active_connections[profile_id])}")
 
@@ -46,9 +49,9 @@ class ConnectionManager:
         if profile_id and profile_id in self.active_connections:
             self.active_connections[profile_id].discard(websocket)
             
-            # Clean up empty sets
             if not self.active_connections[profile_id]:
                 del self.active_connections[profile_id]
+                set_offline(profile_id)
                 if profile_id in self.typing_status:
                     del self.typing_status[profile_id]
         
@@ -81,21 +84,19 @@ class ConnectionManager:
         return success
 
     async def broadcast_message(self, message: dict, match_id: str, session: Session) -> None:
-        """Broadcast a message to both users in a match."""
+        """Broadcast a message to the OTHER user in a match (not the sender)."""
         try:
-            # Get match to find both users
             match = session.get(Match, match_id)
             if not match:
                 logger.warning(f"Match {match_id} not found for broadcast")
                 return
-            
-            logger.info(f"Broadcasting message to match {match_id} (founder: {match.founder_id}, investor: {match.investor_id})")
-            
-            # Send to both founder and investor
-            founder_result = await self.send_personal_message(message, match.founder_id)
-            investor_result = await self.send_personal_message(message, match.investor_id)
-            
-            logger.info(f"Broadcast results - Founder: {founder_result}, Investor: {investor_result}")
+
+            sender_id = message.get("message", {}).get("sender_id")
+            recipient_id = match.investor_id if sender_id == match.founder_id else match.founder_id
+
+            logger.info(f"Broadcasting message to recipient {recipient_id} in match {match_id}")
+            result = await self.send_personal_message(message, recipient_id)
+            logger.info(f"Broadcast result for {recipient_id}: {result}")
         except Exception as e:
             logger.error(f"Error broadcasting message to match {match_id}: {e}", exc_info=True)
 
@@ -127,8 +128,11 @@ class ConnectionManager:
             self.typing_status[sender_id].pop(match_id, None)
 
     def is_online(self, profile_id: str) -> bool:
-        """Check if a profile is currently online."""
-        return profile_id in self.active_connections and len(self.active_connections[profile_id]) > 0
+        """Check if a profile is currently online (Redis + in-memory fallback)."""
+        from app.services.presence_service import is_online as redis_online
+        return redis_online(profile_id) or (
+            profile_id in self.active_connections and len(self.active_connections[profile_id]) > 0
+        )
 
     def get_online_count(self) -> int:
         """Get total number of online users."""
