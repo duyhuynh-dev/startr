@@ -69,11 +69,12 @@ export default function LikesPage() {
   };
 
   const handlePass = async (recipientId: string) => {
+    if (!user?.profile_id) return;
     setLikes(likes.filter((item) => item.profile.id !== recipientId));
     toast('Passed', 'info');
     try {
       await matchesApi.passOnProfile({
-        user_id: user?.profile_id,
+        user_id: user.profile_id,
         passed_profile_id: recipientId,
       });
     } catch (err) {
