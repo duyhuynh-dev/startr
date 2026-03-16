@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlmodel import Session
 
 from app.core.config import settings
 from app.core.dependencies import get_current_user, get_session
-from app.core.exceptions import ValidationError
 from app.models.user import User
 from app.schemas.storage import (
     FileDeleteResponse,

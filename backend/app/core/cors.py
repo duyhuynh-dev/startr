@@ -1,6 +1,5 @@
 """CORS utility functions for consistent header generation."""
 
-import fnmatch
 import re
 from typing import Dict, List, Optional
 

@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Query, status
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Query
 from sqlmodel import Session
 
 from app.core.dependencies import get_current_user
-from app.db.session import get_session
 from app.models.user import User
 from app.services.realtime import connection_manager
 from app.services.messaging import messaging_service

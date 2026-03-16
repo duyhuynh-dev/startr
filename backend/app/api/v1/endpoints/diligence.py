@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session
 
 from app.core.dependencies import get_current_user
@@ -91,7 +91,7 @@ def get_summary(
     """Get automated due diligence summary for a profile."""
     try:
         return diligence_service.generate_summary(session, profile_id, force_refresh)
-    except ValueError as e:
+    except ValueError:
         from app.core.exceptions import NotFoundError
         raise NotFoundError(resource="Profile", identifier=profile_id)
 

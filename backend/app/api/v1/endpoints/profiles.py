@@ -3,14 +3,12 @@ from __future__ import annotations
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlmodel import Session
 
 from app.core.exceptions import NotFoundError
-from app.core.config import settings
 from app.core.dependencies import get_current_user, get_optional_user
-from app.core.rate_limit import limiter
 from app.db.session import get_session
 from app.models.profile import Profile
 from app.models.user import User

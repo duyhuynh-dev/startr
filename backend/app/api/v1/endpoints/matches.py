@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+import sys
+import traceback
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 
 from app.core.dependencies import get_current_user_profile
-from app.core.exceptions import AppException, ValidationError
-from app.core.rate_limit import limiter
+from app.core.exceptions import AppException
 from app.db.session import get_session
 from app.models.profile import Profile
 from app.schemas.match import DailyLimitsResponse, LikePayload, MatchRecord, PassPayload
@@ -106,12 +107,6 @@ def send_like(
     session: Session = Depends(get_session),
 ) -> dict:
     """Send a like to another profile. Sender is the authenticated user. Returns match if mutual."""
-    import logging
-    import traceback
-    import sys
-
-    logger = logging.getLogger(__name__)
-
     if not payload.recipient_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -173,7 +168,7 @@ def send_like(
         
         # FORCE print to stderr
         print(f"\n{'='*60}", file=sys.stderr, flush=True)
-        print(f"EXCEPTION IN send_like:", file=sys.stderr, flush=True)
+        print("EXCEPTION IN send_like:", file=sys.stderr, flush=True)
         print(f"  Type: {error_type}", file=sys.stderr, flush=True)
         print(f"  Message: {error_msg}", file=sys.stderr, flush=True)
         print(f"{'='*60}", file=sys.stderr, flush=True)
