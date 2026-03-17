@@ -56,8 +56,8 @@ router = APIRouter()
     """,
 )
 async def upload_profile_photo(
-    file: UploadFile = File(...),
     http_request: Request,
+    file: UploadFile = File(...),
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> FileUploadResponse:
