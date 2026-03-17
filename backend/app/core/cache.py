@@ -24,7 +24,7 @@ COMPATIBILITY_CACHE_PREFIX = "compat:"
 DILIGENCE_CACHE_PREFIX = "diligence:"
 STABLE_MATCH_PREFIX = "stable_match:"
 LIKES_QUEUE_PREFIX = "likes_queue:"
-PROMPT_TEMPLATE_CACHE_PREFIX = "prompt_template:"
+PROMPT_TEMPLATE_CACHE_PREFIX = "prompt_template:v2:"
 EMBEDDING_CACHE_PREFIX = "embedding:"
 EMBEDDING_TEXT_CACHE_PREFIX = "embedding_text:"
 
