@@ -10,6 +10,7 @@ from sqlmodel import Session
 
 from app.core.config import settings
 from app.core.dependencies import get_current_user
+from app.core.auth import create_access_token, create_refresh_token
 from app.core.turnstile import verify_turnstile
 from app.core.exceptions import ConflictError, UnauthorizedError, ValidationError
 from app.db.session import get_session
@@ -121,11 +122,15 @@ async def signup(
             role=request.role,
             full_name=request.full_name,
         )
-        user, access_token, refresh_token = auth_service.login(
-            session=session,
-            email=request.email,
-            password=request.password,
-        )
+        # Create tokens directly to avoid a second bcrypt verify (which can be slow on small instances)
+        token_data = {
+            "sub": user.id,
+            "email": user.email,
+            "profile_id": user.profile_id,
+            "is_admin": user.is_admin,
+        }
+        access_token = create_access_token(token_data)
+        refresh_token = create_refresh_token(token_data)
         expires_in = settings.access_token_expire_minutes * 60
         return SignUpResponse(
             user=UserResponse(
