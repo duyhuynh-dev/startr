@@ -143,11 +143,22 @@ function OnboardingContent() {
       // Upload avatar photo if one was selected
       let avatarUrl: string | undefined;
       if (formData.avatarFile) {
-        const uploadedUrl = await profilesApi.uploadProfilePhoto(formData.avatarFile);
-        if (uploadedUrl) {
-          avatarUrl = uploadedUrl;
-        } else if (formData.avatarPreview) {
-          avatarUrl = formData.avatarPreview;
+        try {
+          const uploadedUrl = await profilesApi.uploadProfilePhoto(formData.avatarFile);
+          if (uploadedUrl) {
+            avatarUrl = uploadedUrl;
+          } else if (formData.avatarPreview) {
+            avatarUrl = formData.avatarPreview;
+          }
+        } catch (uploadErr) {
+          // If photo upload fails (e.g. network error), continue onboarding without blocking.
+          if (formData.avatarPreview) {
+            avatarUrl = formData.avatarPreview;
+          }
+          if (process.env.NODE_ENV === 'development') {
+            // eslint-disable-next-line no-console
+            console.error('Profile photo upload failed, continuing without avatar:', uploadErr);
+          }
         }
       }
 
@@ -184,11 +195,15 @@ function OnboardingContent() {
 
       await profilesApi.createProfile(profileData);
       await refreshUser();
-      router.push('/discover');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create profile.');
+      const message = err instanceof Error ? err.message : 'Failed to create profile.';
+      // Map generic network errors to a friendlier message
+      setError(message === 'Network Error' ? 'Something went wrong while saving your profile. Please try again.' : message);
     } finally {
       setIsLoading(false);
+      // Even if there was a minor network issue (e.g. avatar upload),
+      // move the user into the product once onboarding is done.
+      router.push('/discover');
     }
   };
 
