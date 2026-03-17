@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"  # JWT algorithm
     access_token_expire_minutes: int = 30  # Access token expiration
     refresh_token_expire_days: int = 7  # Refresh token expiration
+    bcrypt_rounds: int = 12  # bcrypt cost factor (lower = faster, higher = stronger)
     
     # OAuth Configuration (Optional - add API keys when ready)
     firebase_project_id: Optional[str] = None

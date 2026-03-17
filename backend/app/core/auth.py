@@ -36,8 +36,8 @@ def get_password_hash(password: str) -> str:
     if len(password_bytes) > 72:
         password_bytes = password_bytes[:72]
     
-    # Generate salt and hash
-    salt = bcrypt.gensalt()
+    # Generate salt and hash (configurable work factor for production performance)
+    salt = bcrypt.gensalt(rounds=max(8, int(getattr(settings, "bcrypt_rounds", 12))))
     hashed = bcrypt.hashpw(password_bytes, salt)
     
     # Return as string

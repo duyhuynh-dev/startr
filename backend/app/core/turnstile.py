@@ -27,8 +27,13 @@ async def verify_turnstile(token: str | None, remote_ip: str | None = None) -> b
     if remote_ip:
         payload["remoteip"] = remote_ip
 
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(VERIFY_URL, data=payload)
-        data = resp.json()
+    # Keep a hard timeout so auth never hangs waiting on Turnstile.
+    timeout = httpx.Timeout(connect=3.0, read=3.0, write=3.0, pool=3.0)
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.post(VERIFY_URL, data=payload)
+            data = resp.json()
+    except Exception:
+        return False
 
     return data.get("success", False)
