@@ -25,6 +25,7 @@ from app.models.user import User
 
 EMAILS_TO_DELETE = [
     "huynhngocbaoduy1101@gmail.com",
+    "huynhduymath@gmail.com",
     "duy.hnb11@gmail.com",
 ]
 
