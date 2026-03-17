@@ -15,6 +15,7 @@ function VerifyEmailContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const emailParam = searchParams.get('email') || '';
+  const nextParam = searchParams.get('next') || '/onboarding';
 
   const [email, setEmail] = useState(emailParam);
   const [otpDigits, setOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
@@ -117,7 +118,7 @@ function VerifyEmailContent() {
     try {
       await verificationApi.verifyEmailOTP(email, verifyCode);
       setSuccess('Email verified! Redirecting...');
-      setTimeout(() => router.push('/onboarding'), 1500);
+      setTimeout(() => router.push(nextParam), 600);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Invalid code. Please try again.');
       setOtpDigits(['', '', '', '', '', '']);

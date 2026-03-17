@@ -40,9 +40,8 @@ export const profilesApi = {
         timeout: 30000,
       });
       return response.data.file_url;
-    } catch {
-      if (process.env.NODE_ENV === 'development') console.warn('Photo upload failed (storage may be unavailable). Skipping avatar.');
-      return null;
+    } catch (error) {
+      throw new Error(getErrorMessage(error));
     }
   },
 

@@ -116,9 +116,9 @@ export default function LikesPage() {
           </div>
         ) : (
         <div className="px-6 lg:px-10 py-6">
-          <div className="max-w-3xl">
+          <div className="max-w-3xl mx-auto">
             {isLoading ? (
-              <div className="flex items-center justify-center py-24">
+              <div className="flex items-center justify-center min-h-[60vh]">
                 <div className="animate-spin w-8 h-8 border-2 border-white/10 border-t-amber-400 rounded-full" />
               </div>
             ) : error ? (

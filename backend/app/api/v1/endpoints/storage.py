@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from fastapi.responses import StreamingResponse
 from sqlmodel import Session
 
 from app.core.config import settings
@@ -56,6 +57,7 @@ router = APIRouter()
 )
 async def upload_profile_photo(
     file: UploadFile = File(...),
+    http_request: Request,
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> FileUploadResponse:
@@ -89,7 +91,7 @@ async def upload_profile_photo(
         )
         
         # Upload file
-        file_url = storage_service.upload_file(
+        storage_service.upload_file(
             file_content=optimized_content,
             file_path=file_path,
             content_type=content_type,
@@ -99,6 +101,10 @@ async def upload_profile_photo(
                 "category": "profile-photo",
             },
         )
+
+        # Serve files via API (works even when MinIO is not publicly reachable from browsers)
+        base_url = str(http_request.base_url).rstrip("/")
+        file_url = f"{base_url}{settings.api_prefix}/v1/storage/public/{file_path}"
         
         return FileUploadResponse(
             file_url=file_url,
@@ -122,6 +128,24 @@ async def upload_profile_photo(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Unexpected error: {str(e)}",
         )
+
+
+@router.get(
+    "/public/{file_path:path}",
+    summary="Public file access (proxy)",
+    description="Serve stored files through the API. Useful when MinIO is private to the instance.",
+)
+def get_public_file(file_path: str, http_request: Request) -> StreamingResponse:
+    if not storage_service.is_available() or not storage_service.client or not storage_service.bucket_name:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="File storage service is not available.")
+
+    try:
+        obj = storage_service.client.get_object(Bucket=storage_service.bucket_name, Key=file_path)
+        content_type = obj.get("ContentType") or "application/octet-stream"
+        body = obj["Body"]
+        return StreamingResponse(body, media_type=content_type)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
 
 @router.post(

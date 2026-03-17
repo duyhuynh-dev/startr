@@ -72,8 +72,9 @@ export default function SignupPage() {
 
     try {
       await signup(formData.email, formData.password, selectedRole, formData.fullName, turnstileToken || undefined);
-      // After successful signup, send users into the onboarding flow instead of back to auth.
-      router.push('/onboarding');
+      // Require email verification as part of signup, then continue onboarding.
+      const next = `/onboarding?role=${encodeURIComponent(selectedRole)}`;
+      router.push(`/verify-email?email=${encodeURIComponent(formData.email)}&next=${encodeURIComponent(next)}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Signup failed.');
     } finally {
