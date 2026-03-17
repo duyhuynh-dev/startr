@@ -416,8 +416,8 @@ export default function DiscoverPage() {
 
               {/* Content */}
               {isLoading && profiles.length === 0 ? (
-                <div className="space-y-4">
-                  <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden animate-pulse">
+                <div className="flex items-center justify-center min-h-[60vh]">
+                  <div className="w-full max-w-xl bg-white/5 rounded-2xl border border-white/10 overflow-hidden animate-pulse">
                     <div className="h-64 bg-white/5" />
                     <div className="p-6 space-y-3">
                       <div className="h-6 w-48 bg-white/5 rounded-lg" />
